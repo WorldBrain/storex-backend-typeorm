@@ -1,3 +1,4 @@
+import isPlainObject from 'lodash/isPlainObject'
 import { StorageRegistry } from '@worldbrain/storex'
 import { CreateObjectDissection, dissectCreateObjectOperation, convertCreateObjectDissectionToBatch, setIn } from '@worldbrain/storex/lib/utils'
 // import { CollectionDefinition } from 'storex/types'
@@ -5,6 +6,18 @@ import * as backend from '@worldbrain/storex/lib/types/backend'
 import { IndexDefinition, CollectionField, CollectionDefinition } from '@worldbrain/storex/lib/types';
 import { StorageBackendFeatureSupport } from '@worldbrain/storex/lib/types/backend-features';
 import { UnimplementedError, InvalidOptionsError } from '@worldbrain/storex/lib/types/errors';
+import * as typeorm from 'typeorm'
+import { Connection, ConnectionOptions, createConnection, EntitySchema } from 'typeorm';
+import { collectionsToEntitySchemas } from './entities';
+import { cleanOptionalFieldsForRead, ObjectCleaner, makeCleanerChain, makeCleanBooleanFieldsForRead } from './utils';
+
+const OPERATORS = {
+    $lt: typeorm.LessThan,
+    $lte: typeorm.LessThanOrEqual,
+    $gt: typeorm.MoreThan,
+    $gte: typeorm.MoreThanOrEqual,
+    $ne: typeorm.Not,
+}
 
 export interface IndexedDbImplementation {
     factory: IDBFactory
@@ -18,46 +31,74 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         fullTextSearch: false,
         executeBatch: false,
         transaction: false,
+        singleFieldSorting: true,
+        resultLimiting: true,
     }
 
+    public connection? : Connection
+    public entitySchemas? : {[collectionName : string] : EntitySchema}
+    private readObjectCleaner! : ObjectCleaner
+    private writeObjectCleaner! : ObjectCleaner
     private initialized = false
 
-    constructor(options? : {}) {
+    constructor(private options : { connectionOptions : ConnectionOptions }) {
         super()
     }
 
-    configure({ registry }: { registry: StorageRegistry }) {
+    configure({ registry } : { registry : StorageRegistry }) {
         super.configure({ registry })
         registry.once('initialized', this._onRegistryInitialized)
     }
 
-    _onRegistryInitialized = () => {
+    _onRegistryInitialized = async () => {
         this.initialized = true
+        this.entitySchemas = collectionsToEntitySchemas(this.registry)
+        this.connection = await createConnection({
+            ...this.options.connectionOptions,
+            entities: Object.values(this.entitySchemas),
+        })
+        this.readObjectCleaner = makeCleanerChain([
+            makeCleanBooleanFieldsForRead({ storageRegistry: this.registry }),
+            cleanOptionalFieldsForRead
+        ])
+        this.writeObjectCleaner = makeCleanerChain([
+
+        ])
     }
 
     async migrate(options : { database? : string } = {}) {
+        await this.connection!.synchronize()
     }
 
     async cleanup(): Promise<any> {
 
     }
 
-    async createObject(collection: string, object : any, options: backend.CreateSingleOptions = {}): Promise<backend.CreateSingleResult> {
-        return {}
+    async createObject(collection : string, object : any, options: backend.CreateSingleOptions = {}): Promise<backend.CreateSingleResult> {
+        const repository = this.getRepositoryForCollection(collection, options)
+        const savedObject = await repository.save(object)
+        return { object: savedObject }
     }
 
-    async findObjects<T>(collection: string, where : any, findOpts: backend.FindManyOptions = {}): Promise<Array<T>> {
-        return []
+    async findObjects<T>(collection : string, where : any, options: backend.FindManyOptions = {}): Promise<Array<T>> {
+        const repository = this.getRepositoryForCollection(collection, options)
+        const collectionDefinition = this.registry.collections[collection]
+        const objects = await repository.find({
+            where: convertQueryWhere(where),
+            order: convertOrder(options.order || []),
+            take: options.limit,
+        })
+        return objects.map(object => this.readObjectCleaner(object, { collectionDefinition }))
     }
 
-    async updateObjects(collection: string, where : any, updates : any, options: backend.UpdateManyOptions = {}): Promise<backend.UpdateManyResult> {
+    async updateObjects(collection : string, where : any, updates : any, options: backend.UpdateManyOptions = {}): Promise<backend.UpdateManyResult> {
     }
 
-    async deleteObjects(collection: string, where : any, options: backend.DeleteManyOptions = {}): Promise<backend.DeleteManyResult> {
+    async deleteObjects(collection : string, where : any, options: backend.DeleteManyOptions = {}): Promise<backend.DeleteManyResult> {
         
     }
 
-    async countObjects(collection: string, where : any) : Promise<number> {
+    async countObjects(collection : string, where : any) : Promise<number> {
         return -1
     }
 
@@ -83,4 +124,30 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         }
         return await super.operation(name, ...args)
     }
+
+    getRepositoryForCollection(collectionName : string, options? : { database? : string }) {
+        return this.connection!.getRepository(this.entitySchemas![collectionName])
+    }
+}
+
+function convertQueryWhere(where : any) {
+    for (const [fieldName, predicate] of Object.entries(where)) {
+        if (isPlainObject(predicate)) {
+            for (const [key, value] of Object.entries(predicate)) {
+                if (key.charAt(0) === '$') {
+                    where[fieldName] = OPERATORS[key](value)
+                }
+            }
+        }
+    }
+
+    return where
+}
+
+function convertOrder(order : [string, 'asc' | 'desc'][]) {
+    const converted : { [fieldName : string] : 'ASC' | 'DESC' } = {}
+    for (const [fieldName, direction] of order) {
+        converted[fieldName] = direction === 'asc' ? 'ASC' : 'DESC'
+    }
+    return converted
 }

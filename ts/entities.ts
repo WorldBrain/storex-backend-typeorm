@@ -14,12 +14,20 @@ const FIELD_TYPE_MAP : {[name : string] : EntitySchemaColumnOptions} = {
     'datetime': { type: 'datetime' },
     'timestamp': { type: 'timestamp' },
     'string': { type: 'text' },
-    'boolean': { type: 'bool' },
+    'boolean': { type: 'tinyint' },
     'int': { type: 'integer' },
     'float': { type: 'float' },
 }
 
-export function collectionToEntitySchema(collectionDefinition : CollectionDefinition) {
+export function collectionsToEntitySchemas(storageRegistry : StorageRegistry) : {[collectionName : string] : EntitySchema} {
+    const schemas : {[collectionName : string] : EntitySchema} = {}
+    for (const [collectionName, collectionDefinition] of Object.entries(storageRegistry.collections)) {
+        schemas[collectionName] = collectionToEntitySchema(collectionDefinition)
+    }
+    return schemas
+}
+
+export function collectionToEntitySchema(collectionDefinition : CollectionDefinition) : EntitySchema {
     const entitySchemaOptions : EntitySchemaOptions<any> = {
         name: collectionDefinition.name!,
         columns: {}
@@ -38,7 +46,7 @@ export function collectionToEntitySchema(collectionDefinition : CollectionDefini
             columsOptions.primary = true
         }
 
-        entitySchemaOptions[fieldName] = columsOptions
+        entitySchemaOptions.columns[fieldName] = columsOptions
     }
 
     return new EntitySchema(entitySchemaOptions)
