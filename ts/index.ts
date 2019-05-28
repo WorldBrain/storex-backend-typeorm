@@ -25,6 +25,7 @@ const OPERATORS_AS_STRINGS = {
     $gte: '>=',
     $ne: '!=',
     $eq: '=',
+    $in: 'IN'
 }
 
 export interface IndexedDbImplementation {
@@ -94,18 +95,19 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             .orderBy(convertOrder(options.order || [], { collection }))
             .take(options.limit)
             .getMany()
-        //     order: convertOrder(options.order || []),
-        //     take: options.limit,
-        // })
+        
         return objects.map(object => this.readObjectCleaner(object, { collectionDefinition }))
     }
 
     async updateObjects(collection : string, where : any, updates : any, options : backend.UpdateManyOptions = {}): Promise<backend.UpdateManyResult> {
         const { collectionDefinition, queryBuilderWithWhere } = this._preprocessFilteredOperation(collection, where, options)
+        const convertedUpdates = updates
+        await queryBuilderWithWhere.update(convertedUpdates).execute()
     }
 
     async deleteObjects(collection : string, where : any, options : backend.DeleteManyOptions = {}): Promise<backend.DeleteManyResult> {
         const { collectionDefinition, queryBuilderWithWhere } = this._preprocessFilteredOperation(collection, where, options)
+        await queryBuilderWithWhere.delete().execute()
     }
 
     async countObjects(collection : string, where : any, options : backend.CountOptions = {}) : Promise<number> {
@@ -181,7 +183,11 @@ function convertQueryWhere(where : {[key : string] : any}, options : { tableName
         }
 
         placeholders[fieldName] = rhs
-        expressions.push(`${options.tableName}.${fieldName} ${OPERATORS_AS_STRINGS[operator]} :${fieldName}`)
+        if (operator === '$in') {
+            expressions.push(`${options.tableName}.${fieldName} IN (:...${fieldName})`)
+        } else {
+            expressions.push(`${options.tableName}.${fieldName} ${OPERATORS_AS_STRINGS[operator]} :${fieldName}`)
+        }
     }
     return { expression: expressions.join(' AND '), placeholders }
 }
