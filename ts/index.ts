@@ -18,6 +18,14 @@ const OPERATORS = {
     $gte: typeorm.MoreThanOrEqual,
     $ne: typeorm.Not,
 }
+const OPERATORS_AS_STRINGS = {
+    $lt: '<',
+    $lte: '<=',
+    $gt: '>',
+    $gte: '>=',
+    $ne: '!=',
+    $eq: '=',
+}
 
 export interface IndexedDbImplementation {
     factory: IDBFactory
@@ -81,25 +89,27 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
     }
 
     async findObjects<T>(collection : string, where : any, options: backend.FindManyOptions = {}): Promise<Array<T>> {
-        const { repository, collectionDefinition, convertedWhere } = this._preprocessFilteredOperation(collection, where, options)
-        const objects = await repository.find({
-            where: convertedWhere,
-            order: convertOrder(options.order || []),
-            take: options.limit,
-        })
+        const { collectionDefinition, queryBuilderWithWhere } = this._preprocessFilteredOperation(collection, where, options)
+        const objects = await queryBuilderWithWhere
+            .orderBy(convertOrder(options.order || [], { collection }))
+            .take(options.limit)
+            .getMany()
+        //     order: convertOrder(options.order || []),
+        //     take: options.limit,
+        // })
         return objects.map(object => this.readObjectCleaner(object, { collectionDefinition }))
     }
 
     async updateObjects(collection : string, where : any, updates : any, options : backend.UpdateManyOptions = {}): Promise<backend.UpdateManyResult> {
-        const { repository, collectionDefinition, convertedWhere } = this._preprocessFilteredOperation(collection, where, options)
+        const { collectionDefinition, queryBuilderWithWhere } = this._preprocessFilteredOperation(collection, where, options)
     }
 
     async deleteObjects(collection : string, where : any, options : backend.DeleteManyOptions = {}): Promise<backend.DeleteManyResult> {
-        const { repository, collectionDefinition, convertedWhere } = this._preprocessFilteredOperation(collection, where, options)
+        const { collectionDefinition, queryBuilderWithWhere } = this._preprocessFilteredOperation(collection, where, options)
     }
 
     async countObjects(collection : string, where : any, options : backend.CountOptions = {}) : Promise<number> {
-        const { repository, collectionDefinition, convertedWhere } = this._preprocessFilteredOperation(collection, where, options)
+        const { collectionDefinition, queryBuilderWithWhere } = this._preprocessFilteredOperation(collection, where, options)
         return -1
     }
 
@@ -133,29 +143,53 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
     _preprocessFilteredOperation(collectionName : string, where : any, options? : { database? : string }) {
         const repository = this.getRepositoryForCollection(collectionName, options)
         const collectionDefinition = this.registry.collections[collectionName]
-        const convertedWhere = convertQueryWhere(where)
-        return { repository, collectionDefinition, convertedWhere }
+        const convertedWhere = convertQueryWhere(where, { tableName: collectionName })
+        const queryBuilder = repository.createQueryBuilder(collectionName)
+        const queryBuilderWithWhere = queryBuilder.where(convertedWhere.expression, convertedWhere.placeholders)
+        return { repository, collectionDefinition, convertedWhere, queryBuilderWithWhere }
     }   
 }
 
-function convertQueryWhere(where : any) {
+function convertQueryWhere(where : {[key : string] : any}, options : { tableName : string }) : {
+    expression : string,
+    placeholders : {[key : string] : any}
+} {
+    const placeholders : {[key : string] : any} = {}
+    const expressions : string[] = []
     for (const [fieldName, predicate] of Object.entries(where)) {
+        const conditions = []
         if (isPlainObject(predicate)) {
             for (const [key, value] of Object.entries(predicate)) {
                 if (key.charAt(0) === '$') {
-                    where[fieldName] = OPERATORS[key](value)
+                    if (key === '$eq') { // Not a standard operator, just an internal one
+                        throw new Error(`Unsupported operator '${key}' for field ''`)
+                    }
+                    conditions.push([key, value])
                 }
             }
         }
-    }
+        
+        if (!conditions.length) {
+            conditions.push(['$eq', predicate])
+        } else if (conditions.length > 1) {
+            throw new Error(`Multiple operators per field in 'where' are not supported yet`)
+        }
 
-    return where
+        const [operator, rhs] = conditions[0]
+        if (!OPERATORS_AS_STRINGS[operator]) {
+            throw new Error(`Unsupported operator '${operator}' for field ''`)
+        }
+
+        placeholders[fieldName] = rhs
+        expressions.push(`${options.tableName}.${fieldName} ${OPERATORS_AS_STRINGS[operator]} :${fieldName}`)
+    }
+    return { expression: expressions.join(' AND '), placeholders }
 }
 
-function convertOrder(order : [string, 'asc' | 'desc'][]) {
+function convertOrder(order : [string, 'asc' | 'desc'][], options : { collection : string }) {
     const converted : { [fieldName : string] : 'ASC' | 'DESC' } = {}
     for (const [fieldName, direction] of order) {
-        converted[fieldName] = direction === 'asc' ? 'ASC' : 'DESC'
+        converted[`${options.collection}.${fieldName}`] = direction === 'asc' ? 'ASC' : 'DESC'
     }
     return converted
 }
