@@ -1,11 +1,7 @@
 import isPlainObject from 'lodash/isPlainObject'
 import { StorageRegistry } from '@worldbrain/storex'
-import { CreateObjectDissection, dissectCreateObjectOperation, convertCreateObjectDissectionToBatch, setIn } from '@worldbrain/storex/lib/utils'
-// import { CollectionDefinition } from 'storex/types'
 import * as backend from '@worldbrain/storex/lib/types/backend'
-import { IndexDefinition, CollectionField, CollectionDefinition } from '@worldbrain/storex/lib/types';
 import { StorageBackendFeatureSupport } from '@worldbrain/storex/lib/types/backend-features';
-import { UnimplementedError, InvalidOptionsError } from '@worldbrain/storex/lib/types/errors';
 import * as typeorm from 'typeorm'
 import { Connection, ConnectionOptions, createConnection, EntitySchema } from 'typeorm';
 import { collectionsToEntitySchemas } from './entities';
@@ -21,9 +17,8 @@ const OPERATORS_AS_STRINGS = {
     $in: 'IN'
 }
 
-export interface IndexedDbImplementation {
-    factory: IDBFactory
-    range: new () => IDBKeyRange
+interface InternalOperationOptions {
+    entityManager? : typeorm.EntityManager
 }
 
 export class TypeORMStorageBackend extends backend.StorageBackend {
@@ -31,7 +26,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         count: true,
         createWithRelationships: false,
         fullTextSearch: false,
-        executeBatch: false,
+        executeBatch: true,
         transaction: false,
         singleFieldSorting: true,
         resultLimiting: true,
@@ -77,11 +72,11 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
 
     }
 
-    async createObject(collection : string, object : any, options: backend.CreateSingleOptions = {}): Promise<backend.CreateSingleResult> {
+    async createObject(collection : string, object : any, options: backend.CreateSingleOptions & InternalOperationOptions = {}): Promise<backend.CreateSingleResult> {
         const { repository, collectionDefinition } = this._preprocessOperation(collection, options)
         const cleanedObject = this.writeObjectCleaner(object, { collectionDefinition })
         const savedObject = await repository.save(cleanedObject)
-        return { object: savedObject }
+        return { object: this.readObjectCleaner(savedObject, { collectionDefinition }) }
     }
 
     async findObjects<T>(collection : string, where : any, options: backend.FindManyOptions = {}): Promise<Array<T>> {
@@ -94,14 +89,14 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         return objects.map(object => this.readObjectCleaner(object, { collectionDefinition }))
     }
 
-    async updateObjects(collection : string, where : any, updates : any, options : backend.UpdateManyOptions = {}): Promise<backend.UpdateManyResult> {
-        const { collectionDefinition, queryBuilderWithWhere } = this._preprocessFilteredOperation(collection, where, options)
+    async updateObjects(collection : string, where : any, updates : any, options : backend.UpdateManyOptions & InternalOperationOptions = {}): Promise<backend.UpdateManyResult> {
+        const { queryBuilderWithWhere } = this._preprocessFilteredOperation(collection, where, options)
         const convertedUpdates = updates
         await queryBuilderWithWhere.update(convertedUpdates).execute()
     }
 
-    async deleteObjects(collection : string, where : any, options : backend.DeleteManyOptions = {}): Promise<backend.DeleteManyResult> {
-        const { collectionDefinition, queryBuilderWithWhere } = this._preprocessFilteredOperation(collection, where, options)
+    async deleteObjects(collection : string, where : any, options : backend.DeleteManyOptions & InternalOperationOptions = {}): Promise<backend.DeleteManyResult> {
+        const { queryBuilderWithWhere } = this._preprocessFilteredOperation(collection, where, options)
         await queryBuilderWithWhere.delete().execute()
     }
 
@@ -115,15 +110,25 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             return { info: {} }
         }
 
-        return { info: null }
-    }
+        const info = {}
+        await this.connection!.transaction(async entityManager => {
+            const placeholders = {}
+            for (const operation of batch) {
+                if (operation.operation === 'createObject') {
+                    const toInsert = operation.args instanceof Array ? operation.args[0] : operation.args
+                    for (const {path, placeholder} of operation.replace || []) {
+                        toInsert[path as string] = placeholders[placeholder].id
+                    }
 
-    async transaction(options : { collections: string[] }, body : Function) {
-        const executeBody = async () => {
-            return body({ transactionOperation: (name : string, ...args : any[]) => {
-                return this.operation(name, ...args)
-            } })
-        }
+                    const { object } = await this.createObject(operation.collection, toInsert, { entityManager })
+                    if (operation.placeholder) {
+                        info[operation.placeholder] = { object }
+                        placeholders[operation.placeholder] = object
+                    }
+                }
+            }
+        })
+        return { info }
     }
 
     async operation(name : string, ...args : any[]) {
@@ -133,8 +138,9 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         return await super.operation(name, ...args)
     }
 
-    getRepositoryForCollection(collectionName : string, options? : { database? : string }) {
-        return this.connection!.getRepository(this.entitySchemas![collectionName])
+    getRepositoryForCollection(collectionName : string, options? : InternalOperationOptions & { database? : string }) {
+        const entityManager = (options && options.entityManager) ? options.entityManager : this.connection!
+        return entityManager.getRepository(this.entitySchemas![collectionName])
     }
 
     _preprocessOperation(collectionName : string, options? : { database? : string }) {
