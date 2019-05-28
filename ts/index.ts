@@ -81,24 +81,25 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
     }
 
     async findObjects<T>(collection : string, where : any, options: backend.FindManyOptions = {}): Promise<Array<T>> {
-        const repository = this.getRepositoryForCollection(collection, options)
-        const collectionDefinition = this.registry.collections[collection]
+        const { repository, collectionDefinition, convertedWhere } = this._preprocessFilteredOperation(collection, where, options)
         const objects = await repository.find({
-            where: convertQueryWhere(where),
+            where: convertedWhere,
             order: convertOrder(options.order || []),
             take: options.limit,
         })
         return objects.map(object => this.readObjectCleaner(object, { collectionDefinition }))
     }
 
-    async updateObjects(collection : string, where : any, updates : any, options: backend.UpdateManyOptions = {}): Promise<backend.UpdateManyResult> {
+    async updateObjects(collection : string, where : any, updates : any, options : backend.UpdateManyOptions = {}): Promise<backend.UpdateManyResult> {
+        const { repository, collectionDefinition, convertedWhere } = this._preprocessFilteredOperation(collection, where, options)
     }
 
-    async deleteObjects(collection : string, where : any, options: backend.DeleteManyOptions = {}): Promise<backend.DeleteManyResult> {
-        
+    async deleteObjects(collection : string, where : any, options : backend.DeleteManyOptions = {}): Promise<backend.DeleteManyResult> {
+        const { repository, collectionDefinition, convertedWhere } = this._preprocessFilteredOperation(collection, where, options)
     }
 
-    async countObjects(collection : string, where : any) : Promise<number> {
+    async countObjects(collection : string, where : any, options : backend.CountOptions = {}) : Promise<number> {
+        const { repository, collectionDefinition, convertedWhere } = this._preprocessFilteredOperation(collection, where, options)
         return -1
     }
 
@@ -128,6 +129,13 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
     getRepositoryForCollection(collectionName : string, options? : { database? : string }) {
         return this.connection!.getRepository(this.entitySchemas![collectionName])
     }
+
+    _preprocessFilteredOperation(collectionName : string, where : any, options? : { database? : string }) {
+        const repository = this.getRepositoryForCollection(collectionName, options)
+        const collectionDefinition = this.registry.collections[collectionName]
+        const convertedWhere = convertQueryWhere(where)
+        return { repository, collectionDefinition, convertedWhere }
+    }   
 }
 
 function convertQueryWhere(where : any) {
