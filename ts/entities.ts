@@ -2,6 +2,7 @@ import { EntitySchema, EntitySchemaColumnOptions } from 'typeorm'
 import { EntitySchemaOptions } from 'typeorm/entity-schema/EntitySchemaOptions';
 import { StorageRegistry } from '@worldbrain/storex'
 import { CollectionDefinition, isChildOfRelationship, isConnectsRelationship, CollectionField } from '@worldbrain/storex/lib/types'
+import { RelationType } from 'typeorm/metadata/types/RelationTypes';
 
 const FIELD_TYPE_MAP : {[name : string] : EntitySchemaColumnOptions} = {
     'auto-pk': {
@@ -30,7 +31,8 @@ export function collectionsToEntitySchemas(storageRegistry : StorageRegistry) : 
 export function collectionToEntitySchema(collectionDefinition : CollectionDefinition) : EntitySchema {
     const entitySchemaOptions : EntitySchemaOptions<any> = {
         name: collectionDefinition.name!,
-        columns: {}
+        columns: {},
+        relations: {},
     }
     for (const [fieldName, fieldDefinition] of Object.entries(collectionDefinition.fields)) {
         if (fieldDefinition.type == 'foreign-key') {
@@ -47,6 +49,33 @@ export function collectionToEntitySchema(collectionDefinition : CollectionDefini
         }
 
         entitySchemaOptions.columns[fieldName] = columsOptions
+    }
+    for (const relationship of collectionDefinition.relationships || []) {
+        if (isChildOfRelationship(relationship)) {
+            const type : RelationType = relationship.single ? 'one-to-one' : 'many-to-one'
+
+            entitySchemaOptions.relations![relationship.alias!] = {
+                type,
+                target: relationship.targetCollection!,
+                joinColumn: { name: relationship.fieldName },
+            }
+            entitySchemaOptions.columns![relationship.alias! + 'Id'] = {
+                type: 'integer'
+            }
+        } else if (isConnectsRelationship(relationship)) {
+            for (const index of [0, 1]) {
+                entitySchemaOptions.relations![relationship.aliases![index]] = {
+                    type: 'many-to-one',
+                    target: relationship.connects[index]!,
+                    joinColumn: { name: relationship.fieldNames![index] },
+                }
+                entitySchemaOptions.columns![relationship.aliases![index] + 'Id'] = {
+                    type: 'integer'
+                }
+            }
+        } else {
+            throw new Error(`Unknown relationship type encountered in collection ${collectionDefinition.name}`)
+        }
     }
 
     return new EntitySchema(entitySchemaOptions)

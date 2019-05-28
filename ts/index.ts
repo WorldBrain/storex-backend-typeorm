@@ -9,7 +9,7 @@ import { UnimplementedError, InvalidOptionsError } from '@worldbrain/storex/lib/
 import * as typeorm from 'typeorm'
 import { Connection, ConnectionOptions, createConnection, EntitySchema } from 'typeorm';
 import { collectionsToEntitySchemas } from './entities';
-import { cleanOptionalFieldsForRead, ObjectCleaner, makeCleanerChain, makeCleanBooleanFieldsForRead } from './utils';
+import { cleanOptionalFieldsForRead, ObjectCleaner, makeCleanerChain, makeCleanBooleanFieldsForRead, cleanRelationshipFieldsForWrite, cleanRelationshipFieldsForRead } from './utils';
 
 const OPERATORS = {
     $lt: typeorm.LessThan,
@@ -68,10 +68,11 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         })
         this.readObjectCleaner = makeCleanerChain([
             makeCleanBooleanFieldsForRead({ storageRegistry: this.registry }),
-            cleanOptionalFieldsForRead
+            cleanOptionalFieldsForRead,
+            cleanRelationshipFieldsForRead,
         ])
         this.writeObjectCleaner = makeCleanerChain([
-
+            cleanRelationshipFieldsForWrite,
         ])
     }
 
@@ -84,8 +85,9 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
     }
 
     async createObject(collection : string, object : any, options: backend.CreateSingleOptions = {}): Promise<backend.CreateSingleResult> {
-        const repository = this.getRepositoryForCollection(collection, options)
-        const savedObject = await repository.save(object)
+        const { repository, collectionDefinition } = this._preprocessOperation(collection, options)
+        const cleanedObject = this.writeObjectCleaner(object, { collectionDefinition })
+        const savedObject = await repository.save(cleanedObject)
         return { object: savedObject }
     }
 
@@ -142,9 +144,14 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         return this.connection!.getRepository(this.entitySchemas![collectionName])
     }
 
-    _preprocessFilteredOperation(collectionName : string, where : any, options? : { database? : string }) {
+    _preprocessOperation(collectionName : string, options? : { database? : string }) {
         const repository = this.getRepositoryForCollection(collectionName, options)
         const collectionDefinition = this.registry.collections[collectionName]
+        return { repository, collectionDefinition }
+    }
+
+    _preprocessFilteredOperation(collectionName : string, where : any, options? : { database? : string }) {
+        const { repository, collectionDefinition } = this._preprocessOperation(collectionName, options)
         const convertedWhere = convertQueryWhere(where, { tableName: collectionName })
         const queryBuilder = repository.createQueryBuilder(collectionName)
         const queryBuilderWithWhere = queryBuilder.where(convertedWhere.expression, convertedWhere.placeholders)

@@ -1,4 +1,4 @@
-import { CollectionDefinition, StorageRegistry } from "@worldbrain/storex";
+import { CollectionDefinition, StorageRegistry, isChildOfRelationship, isConnectsRelationship } from "@worldbrain/storex";
 
 export type ObjectCleaner = (object : any, options : { collectionDefinition : CollectionDefinition }) => any
 export type ObjectCleanerOptions = { collectionDefinition : CollectionDefinition }
@@ -37,6 +37,39 @@ export function cleanOptionalFieldsForRead(object : any, options : ObjectCleaner
     for (const [fieldName, fieldDefinition] of Object.entries(options.collectionDefinition.fields)) {
         if (fieldDefinition.optional && object[fieldName] === null) {
             delete object[fieldName]
+        }
+    }
+
+    return object
+}
+
+export function cleanRelationshipFieldsForWrite(object : any, options : ObjectCleanerOptions) {
+    return _cleanRelationshipFields(object, options.collectionDefinition, (alias : string, fieldName : string) => {
+        if (!object[alias]) {
+            return
+        }
+
+        object[alias + 'Id'] = object[alias]
+        delete object[alias]
+    })
+}
+
+export function cleanRelationshipFieldsForRead(object : any, options : ObjectCleanerOptions) {
+    return _cleanRelationshipFields(object, options.collectionDefinition, (alias : string, fieldName : string) => {
+        object[alias] = object[alias + 'Id']
+        delete object[alias + 'Id']
+    })
+}
+
+export function _cleanRelationshipFields(
+    object : any, collectionDefinition : CollectionDefinition, cleaner : (alias : string, fieldName : string) => void
+) {
+    for (const relationship of collectionDefinition.relationships || []) {
+        if (isChildOfRelationship(relationship)) {
+            cleaner(relationship.alias!, relationship.fieldName!)
+        } else if (isConnectsRelationship(relationship)) {
+            cleaner(relationship.aliases![0], relationship.fieldNames![0])
+            cleaner(relationship.aliases![1], relationship.fieldNames![1])
         }
     }
 
