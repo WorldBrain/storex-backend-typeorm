@@ -11,13 +11,6 @@ import { Connection, ConnectionOptions, createConnection, EntitySchema } from 't
 import { collectionsToEntitySchemas } from './entities';
 import { cleanOptionalFieldsForRead, ObjectCleaner, makeCleanerChain, makeCleanBooleanFieldsForRead, cleanRelationshipFieldsForWrite, cleanRelationshipFieldsForRead } from './utils';
 
-const OPERATORS = {
-    $lt: typeorm.LessThan,
-    $lte: typeorm.LessThanOrEqual,
-    $gt: typeorm.MoreThan,
-    $gte: typeorm.MoreThanOrEqual,
-    $ne: typeorm.Not,
-}
 const OPERATORS_AS_STRINGS = {
     $lt: '<',
     $lte: '<=',
@@ -35,7 +28,7 @@ export interface IndexedDbImplementation {
 
 export class TypeORMStorageBackend extends backend.StorageBackend {
     features: StorageBackendFeatureSupport = {
-        count: false,
+        count: true,
         createWithRelationships: false,
         fullTextSearch: false,
         executeBatch: false,
@@ -114,7 +107,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
 
     async countObjects(collection : string, where : any, options : backend.CountOptions = {}) : Promise<number> {
         const { collectionDefinition, queryBuilderWithWhere } = this._preprocessFilteredOperation(collection, where, options)
-        return -1
+        return queryBuilderWithWhere.getCount()
     }
 
     async executeBatch(batch : backend.OperationBatch) {
