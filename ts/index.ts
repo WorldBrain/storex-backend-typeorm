@@ -6,6 +6,7 @@ import * as typeorm from 'typeorm'
 import { Connection, ConnectionOptions, createConnection, EntitySchema } from 'typeorm';
 import { collectionsToEntitySchemas } from './entities';
 import { cleanOptionalFieldsForRead, ObjectCleaner, makeCleanerChain, makeCleanBooleanFieldsForRead, cleanRelationshipFieldsForWrite, cleanRelationshipFieldsForRead } from './utils';
+import { ComplexCreateMiddleware } from './middleware';
 
 const OPERATORS_AS_STRINGS = {
     $lt: '<',
@@ -24,7 +25,7 @@ interface InternalOperationOptions {
 export class TypeORMStorageBackend extends backend.StorageBackend {
     features: StorageBackendFeatureSupport = {
         count: true,
-        createWithRelationships: false,
+        createWithRelationships: true,
         fullTextSearch: false,
         executeBatch: true,
         transaction: false,
@@ -53,6 +54,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         this.connection = await createConnection({
             ...this.options.connectionOptions,
             entities: Object.values(this.entitySchemas),
+            logging: true,
         })
         this.readObjectCleaner = makeCleanerChain([
             makeCleanBooleanFieldsForRead({ storageRegistry: this.registry }),
@@ -135,7 +137,10 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         if (!this.initialized) {
             throw new Error('Tried to use TypeORM backend without calling StorageManager.finishInitialization() first')
         }
-        return await super.operation(name, ...args)
+        const next = { process: (context : { operation : any[] }) => super.operation(context.operation[0], ...context.operation.slice(1)) }
+        const middleware = new ComplexCreateMiddleware({ storageRegistry: this.registry })
+        const result = await middleware.process({ operation: [name, ...args], next })
+        return result
     }
 
     getRepositoryForCollection(collectionName : string, options? : InternalOperationOptions & { database? : string }) {
