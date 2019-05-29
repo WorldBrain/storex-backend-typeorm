@@ -42,6 +42,10 @@ export class ComplexCreateMiddleware implements StorageMiddleware {
                 newBatch.push(step)
                 continue
             }
+            if (step.replace) {
+                // This is a batch with custom replacements, skip it
+                return context.next.process({ operation: context.operation })
+            }
             
             let placeholderCount = 0
             const dissection = dissectCreateObjectOperation({
@@ -51,7 +55,8 @@ export class ComplexCreateMiddleware implements StorageMiddleware {
             }, this.options.storageRegistry, {
                 generatePlaceholder: () => `${step.placeholder}-${++placeholderCount}`
             })
-            const batchToExecute = convertCreateObjectDissectionToBatch(dissection)    
+            
+            const batchToExecute = convertCreateObjectDissectionToBatch(dissection)
 
             placeholders[step.placeholder] = {
                 collection: step.collection,

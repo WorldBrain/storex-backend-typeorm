@@ -54,7 +54,6 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         this.connection = await createConnection({
             ...this.options.connectionOptions,
             entities: Object.values(this.entitySchemas),
-            logging: true,
         })
         this.readObjectCleaner = makeCleanerChain([
             makeCleanBooleanFieldsForRead({ storageRegistry: this.registry }),
