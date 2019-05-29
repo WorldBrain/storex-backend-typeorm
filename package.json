@@ -1,5 +1,5 @@
 {
-  "name": "@worldbrain/storex-backed-typeorm",
+  "name": "@worldbrain/storex-backend-typeorm",
   "version": "0.1.0",
   "license": "MIT",
   "description": "Storex TypeORM storage backend",
