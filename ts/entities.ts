@@ -39,16 +39,18 @@ export function collectionToEntitySchema(collectionDefinition : CollectionDefini
             continue
         }
 
-        const columsOptions : EntitySchemaColumnOptions = fieldToEntitySchemaColumn(fieldDefinition, {
+        const columnOptions : EntitySchemaColumnOptions = fieldToEntitySchemaColumn(fieldDefinition, {
             collectionName: entitySchemaOptions.name,
             fieldName,
         })
-        
-        if (collectionDefinition.pkIndex === fieldName) {
-            columsOptions.primary = true
+
+        if (collectionDefinition.pkIndex instanceof Array
+            ? collectionDefinition.pkIndex.includes(fieldName)
+            : collectionDefinition.pkIndex === fieldName) {
+            columnOptions.primary = true
         }
 
-        entitySchemaOptions.columns[fieldName] = columsOptions
+        entitySchemaOptions.columns[fieldName] = columnOptions
     }
     for (const relationship of collectionDefinition.relationships || []) {
         if (isChildOfRelationship(relationship)) {
