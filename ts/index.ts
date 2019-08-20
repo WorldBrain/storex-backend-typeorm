@@ -80,6 +80,12 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         return { object: this.readObjectCleaner(savedObject, { collectionDefinition }) }
     }
 
+    async rawCreateObjects(collection : string, objects : any[], options: backend.CreateManyOptions & InternalOperationOptions): Promise<backend.CreateManyResult> {
+        const { repository, collectionDefinition } = this._preprocessOperation(collection, options)
+        const savedObjects = await repository.save(objects)
+        return { objects: savedObjects }
+    }
+
     async findObjects<T>(collection : string, where : any, options: backend.FindManyOptions = {}): Promise<Array<T>> {
         const { collectionDefinition, queryBuilderWithWhere } = this._preprocessFilteredOperation(collection, where, options)
         const objects = await queryBuilderWithWhere
