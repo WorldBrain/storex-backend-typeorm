@@ -1,5 +1,5 @@
 import isPlainObject from 'lodash/isPlainObject'
-import { StorageRegistry } from '@worldbrain/storex'
+import { StorageRegistry, CollectionDefinition, isChildOfRelationship } from '@worldbrain/storex'
 import * as backend from '@worldbrain/storex/lib/types/backend'
 import { StorageBackendFeatureSupport } from '@worldbrain/storex/lib/types/backend-features';
 import * as typeorm from 'typeorm'
@@ -161,17 +161,30 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
 
     _preprocessFilteredOperation(collectionName : string, where : any, options? : { database? : string }) {
         const { repository, collectionDefinition } = this._preprocessOperation(collectionName, options)
-        const convertedWhere = convertQueryWhere(where, { tableName: collectionName })
+        const convertedWhere = convertQueryWhere(where, { collectionDefinition })
         const queryBuilder = repository.createQueryBuilder(collectionName)
         const queryBuilderWithWhere = queryBuilder.where(convertedWhere.expression, convertedWhere.placeholders)
         return { repository, collectionDefinition, convertedWhere, queryBuilderWithWhere }
     }   
 }
 
-function convertQueryWhere(where : {[key : string] : any}, options : { tableName : string }) : {
+function convertQueryWhere(where : {[key : string] : any}, options : { collectionDefinition: CollectionDefinition }) : {
     expression : string,
     placeholders : {[key : string] : any}
 } {
+    const convertFieldName = (fieldName : string) => {
+        const relationship = options.collectionDefinition.relationshipsByAlias![fieldName]
+        if (!relationship) {
+            return fieldName
+        }
+
+        if (isChildOfRelationship(relationship)) {
+            return relationship.fieldName!
+        } else {
+            throw new Error(`Not supported yet to filter by this relationship: ${fieldName}`)
+        }
+    }
+
     const placeholders : {[key : string] : any} = {}
     const expressions : string[] = []
     for (const [fieldName, predicate] of Object.entries(where)) {
@@ -198,11 +211,12 @@ function convertQueryWhere(where : {[key : string] : any}, options : { tableName
             throw new Error(`Unsupported operator '${operator}' for field ''`)
         }
 
-        placeholders[fieldName] = rhs
+        const convertedFieldName = convertFieldName(fieldName)
+        placeholders[convertedFieldName] = rhs
         if (operator === '$in') {
-            expressions.push(`${options.tableName}.${fieldName} IN (:...${fieldName})`)
+            expressions.push(`${options.collectionDefinition.name}.${convertedFieldName} IN (:...${convertedFieldName})`)
         } else {
-            expressions.push(`${options.tableName}.${fieldName} ${OPERATORS_AS_STRINGS[operator]} :${fieldName}`)
+            expressions.push(`${options.collectionDefinition.name}.${convertedFieldName} ${OPERATORS_AS_STRINGS[operator]} :${convertedFieldName}`)
         }
     }
     return { expression: expressions.join(' AND '), placeholders }
