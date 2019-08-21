@@ -126,6 +126,12 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
                         info[operation.placeholder] = { object }
                         placeholders[operation.placeholder] = object
                     }
+                } else if (operation.operation === 'updateObjects') {
+                    await this.updateObjects(operation.collection, operation.where, operation.updates)
+                } else if (operation.operation === 'deleteObjects') {
+                    await this.deleteObjects(operation.collection, operation.where)
+                } else {
+                    throw new Error(`Unsupported operation in batch: ${(operation as any).operation}`)
                 }
             }
         })
