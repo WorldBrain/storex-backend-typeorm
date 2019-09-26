@@ -1,10 +1,20 @@
-import { CollectionDefinition, StorageRegistry, isChildOfRelationship, isConnectsRelationship } from "@worldbrain/storex";
+import {
+    CollectionDefinition,
+    StorageRegistry,
+    isChildOfRelationship,
+    isConnectsRelationship,
+} from '@worldbrain/storex'
 
-export type ObjectCleaner = (object : any, options : { collectionDefinition : CollectionDefinition }) => any
-export type ObjectCleanerOptions = { collectionDefinition : CollectionDefinition }
+export type ObjectCleaner = (
+    object: any,
+    options: { collectionDefinition: CollectionDefinition },
+) => any
+export type ObjectCleanerOptions = {
+    collectionDefinition: CollectionDefinition
+}
 
-export function makeCleanerChain(cleaners : ObjectCleaner[]) : ObjectCleaner {
-    return (object : any, options : ObjectCleanerOptions) => {
+export function makeCleanerChain(cleaners: ObjectCleaner[]): ObjectCleaner {
+    return (object: any, options: ObjectCleanerOptions) => {
         for (const cleaner of cleaners) {
             object = cleaner(object, options)
         }
@@ -12,20 +22,31 @@ export function makeCleanerChain(cleaners : ObjectCleaner[]) : ObjectCleaner {
     }
 }
 
-export function makeCleanBooleanFieldsForRead(options : { storageRegistry : StorageRegistry }) {
-    const fieldsByCollection : {[collection : string] : string[]} = {}
+export function makeCleanBooleanFieldsForRead(options: {
+    storageRegistry: StorageRegistry
+}) {
+    const fieldsByCollection: { [collection: string]: string[] } = {}
 
-    for (const [collectionName, collectionDefinition] of Object.entries(options.storageRegistry.collections)) {
-        for (const [fieldName, fieldDefinition] of Object.entries(collectionDefinition.fields)) {
+    for (const [collectionName, collectionDefinition] of Object.entries(
+        options.storageRegistry.collections,
+    )) {
+        for (const [fieldName, fieldDefinition] of Object.entries(
+            collectionDefinition.fields,
+        )) {
             if (fieldDefinition.type === 'boolean') {
-                fieldsByCollection[collectionName] = fieldsByCollection[collectionName] || []
+                fieldsByCollection[collectionName] =
+                    fieldsByCollection[collectionName] || []
                 fieldsByCollection[collectionName].push(fieldName)
             }
         }
     }
 
-    return function cleanBooleanFieldsForRead(object : any, options : ObjectCleanerOptions) {
-        const fieldNames = fieldsByCollection[options.collectionDefinition.name!]
+    return function cleanBooleanFieldsForRead(
+        object: any,
+        options: ObjectCleanerOptions,
+    ) {
+        const fieldNames =
+            fieldsByCollection[options.collectionDefinition.name!]
         for (const fieldName of fieldNames || []) {
             object[fieldName] = !!object[fieldName]
         }
@@ -33,8 +54,13 @@ export function makeCleanBooleanFieldsForRead(options : { storageRegistry : Stor
     }
 }
 
-export function cleanOptionalFieldsForRead(object : any, options : ObjectCleanerOptions) {
-    for (const [fieldName, fieldDefinition] of Object.entries(options.collectionDefinition.fields)) {
+export function cleanOptionalFieldsForRead(
+    object: any,
+    options: ObjectCleanerOptions,
+) {
+    for (const [fieldName, fieldDefinition] of Object.entries(
+        options.collectionDefinition.fields,
+    )) {
         if (fieldDefinition.optional && object[fieldName] === null) {
             delete object[fieldName]
         }
@@ -43,26 +69,42 @@ export function cleanOptionalFieldsForRead(object : any, options : ObjectCleaner
     return object
 }
 
-export function cleanRelationshipFieldsForWrite(object : any, options : ObjectCleanerOptions) {
-    return _cleanRelationshipFields(object, options.collectionDefinition, (alias : string, fieldName : string) => {
-        if (!object[alias]) {
-            return
-        }
+export function cleanRelationshipFieldsForWrite(
+    object: any,
+    options: ObjectCleanerOptions,
+) {
+    return _cleanRelationshipFields(
+        object,
+        options.collectionDefinition,
+        (alias: string, fieldName: string) => {
+            if (!object[alias]) {
+                return
+            }
 
-        object[alias + 'Id'] = object[alias]
-        delete object[alias]
-    })
+            object[alias + 'Id'] = object[alias]
+            delete object[alias]
+        },
+    )
 }
 
-export function cleanRelationshipFieldsForRead(object : any, options : ObjectCleanerOptions) {
-    return _cleanRelationshipFields(object, options.collectionDefinition, (alias : string, fieldName : string) => {
-        object[alias] = object[alias + 'Id']
-        delete object[alias + 'Id']
-    })
+export function cleanRelationshipFieldsForRead(
+    object: any,
+    options: ObjectCleanerOptions,
+) {
+    return _cleanRelationshipFields(
+        object,
+        options.collectionDefinition,
+        (alias: string, fieldName: string) => {
+            object[alias] = object[alias + 'Id']
+            delete object[alias + 'Id']
+        },
+    )
 }
 
 export function _cleanRelationshipFields(
-    object : any, collectionDefinition : CollectionDefinition, cleaner : (alias : string, fieldName : string) => void
+    object: any,
+    collectionDefinition: CollectionDefinition,
+    cleaner: (alias: string, fieldName: string) => void,
 ) {
     for (const relationship of collectionDefinition.relationships || []) {
         if (isChildOfRelationship(relationship)) {

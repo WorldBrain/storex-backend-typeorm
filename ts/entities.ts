@@ -1,52 +1,70 @@
 import { EntitySchema, EntitySchemaColumnOptions } from 'typeorm'
-import { EntitySchemaOptions } from 'typeorm/entity-schema/EntitySchemaOptions';
+import { EntitySchemaOptions } from 'typeorm/entity-schema/EntitySchemaOptions'
 import { StorageRegistry } from '@worldbrain/storex'
-import { CollectionDefinition, isChildOfRelationship, isConnectsRelationship, CollectionField } from '@worldbrain/storex/lib/types'
-import { RelationType } from 'typeorm/metadata/types/RelationTypes';
+import {
+    CollectionDefinition,
+    isChildOfRelationship,
+    isConnectsRelationship,
+    CollectionField,
+} from '@worldbrain/storex/lib/types'
+import { RelationType } from 'typeorm/metadata/types/RelationTypes'
 
-const FIELD_TYPE_MAP : {[name : string] : EntitySchemaColumnOptions} = {
+const FIELD_TYPE_MAP: { [name: string]: EntitySchemaColumnOptions } = {
     'auto-pk': {
         type: 'integer',
         generated: true,
-        primary: true
+        primary: true,
     },
-    'text': { type: 'text' },
-    'json': { type: 'json' },
-    'datetime': { type: 'datetime' },
-    'timestamp': { type: 'timestamp' },
-    'string': { type: 'text' },
-    'boolean': { type: 'tinyint' },
-    'int': { type: 'integer' },
-    'float': { type: 'float' },
+    text: { type: 'text' },
+    json: { type: 'json' },
+    datetime: { type: 'datetime' },
+    timestamp: { type: 'timestamp' },
+    string: { type: 'text' },
+    boolean: { type: 'tinyint' },
+    int: { type: 'integer' },
+    float: { type: 'float' },
 }
 
-export function collectionsToEntitySchemas(storageRegistry : StorageRegistry) : {[collectionName : string] : EntitySchema} {
-    const schemas : {[collectionName : string] : EntitySchema} = {}
-    for (const [collectionName, collectionDefinition] of Object.entries(storageRegistry.collections)) {
+export function collectionsToEntitySchemas(
+    storageRegistry: StorageRegistry,
+): { [collectionName: string]: EntitySchema } {
+    const schemas: { [collectionName: string]: EntitySchema } = {}
+    for (const [collectionName, collectionDefinition] of Object.entries(
+        storageRegistry.collections,
+    )) {
         schemas[collectionName] = collectionToEntitySchema(collectionDefinition)
     }
     return schemas
 }
 
-export function collectionToEntitySchema(collectionDefinition : CollectionDefinition) : EntitySchema {
-    const entitySchemaOptions : EntitySchemaOptions<any> = {
+export function collectionToEntitySchema(
+    collectionDefinition: CollectionDefinition,
+): EntitySchema {
+    const entitySchemaOptions: EntitySchemaOptions<any> = {
         name: collectionDefinition.name!,
         columns: {},
         relations: {},
     }
-    for (const [fieldName, fieldDefinition] of Object.entries(collectionDefinition.fields)) {
+    for (const [fieldName, fieldDefinition] of Object.entries(
+        collectionDefinition.fields,
+    )) {
         if (fieldDefinition.type == 'foreign-key') {
             continue
         }
 
-        const columnOptions : EntitySchemaColumnOptions = fieldToEntitySchemaColumn(fieldDefinition, {
-            collectionName: entitySchemaOptions.name,
-            fieldName,
-        })
+        const columnOptions: EntitySchemaColumnOptions = fieldToEntitySchemaColumn(
+            fieldDefinition,
+            {
+                collectionName: entitySchemaOptions.name,
+                fieldName,
+            },
+        )
 
-        if (collectionDefinition.pkIndex instanceof Array
-            ? collectionDefinition.pkIndex.includes(fieldName)
-            : collectionDefinition.pkIndex === fieldName) {
+        if (
+            collectionDefinition.pkIndex instanceof Array
+                ? collectionDefinition.pkIndex.includes(fieldName)
+                : collectionDefinition.pkIndex === fieldName
+        ) {
             columnOptions.primary = true
         }
 
@@ -54,7 +72,9 @@ export function collectionToEntitySchema(collectionDefinition : CollectionDefini
     }
     for (const relationship of collectionDefinition.relationships || []) {
         if (isChildOfRelationship(relationship)) {
-            const type : RelationType = relationship.single ? 'one-to-one' : 'many-to-one'
+            const type: RelationType = relationship.single
+                ? 'one-to-one'
+                : 'many-to-one'
 
             entitySchemaOptions.relations![relationship.alias!] = {
                 type,
@@ -62,7 +82,7 @@ export function collectionToEntitySchema(collectionDefinition : CollectionDefini
                 joinColumn: { name: relationship.fieldName },
             }
             entitySchemaOptions.columns![relationship.alias! + 'Id'] = {
-                type: 'integer'
+                type: 'integer',
             }
         } else if (isConnectsRelationship(relationship)) {
             for (const index of [0, 1]) {
@@ -71,24 +91,37 @@ export function collectionToEntitySchema(collectionDefinition : CollectionDefini
                     target: relationship.connects[index]!,
                     joinColumn: { name: relationship.fieldNames![index] },
                 }
-                entitySchemaOptions.columns![relationship.aliases![index] + 'Id'] = {
-                    type: 'integer'
+                entitySchemaOptions.columns![
+                    relationship.aliases![index] + 'Id'
+                ] = {
+                    type: 'integer',
                 }
             }
         } else {
-            throw new Error(`Unknown relationship type encountered in collection ${collectionDefinition.name}`)
+            throw new Error(
+                `Unknown relationship type encountered in collection ${collectionDefinition.name}`,
+            )
         }
     }
 
     return new EntitySchema(entitySchemaOptions)
 }
 
-export function fieldToEntitySchemaColumn(fieldDefinition : CollectionField, options : { collectionName : string, fieldName : string }) : EntitySchemaColumnOptions {
-    const primitiveType = fieldDefinition.fieldObject ? fieldDefinition.fieldObject.primitiveType : fieldDefinition.type
-    
-    const columnOptions = FIELD_TYPE_MAP[primitiveType] && {...FIELD_TYPE_MAP[primitiveType]}
+export function fieldToEntitySchemaColumn(
+    fieldDefinition: CollectionField,
+    options: { collectionName: string; fieldName: string },
+): EntitySchemaColumnOptions {
+    const primitiveType = fieldDefinition.fieldObject
+        ? fieldDefinition.fieldObject.primitiveType
+        : fieldDefinition.type
+
+    const columnOptions = FIELD_TYPE_MAP[primitiveType] && {
+        ...FIELD_TYPE_MAP[primitiveType],
+    }
     if (!columnOptions) {
-        throw new Error(`Unknown field type for field '${options.fieldName}' of collection '${options.collectionName}': '${primitiveType}'`)
+        throw new Error(
+            `Unknown field type for field '${options.fieldName}' of collection '${options.collectionName}': '${primitiveType}'`,
+        )
     }
 
     if (fieldDefinition.optional) {

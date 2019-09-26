@@ -1,49 +1,58 @@
 {
-  "name": "@worldbrain/storex-backend-typeorm",
-  "version": "0.1.0",
-  "license": "MIT",
-  "description": "Storex TypeORM storage backend",
-  "main": "lib/index.js",
-  "typings": "lib/index",
-  "scripts": {
-    "prepare": "tsc",
-    "prepare:watch": "npm run prepare -- -w",
-    "test": "mocha --require ts-node/register \"ts/**/*.test.ts\"",
-    "test:watch": "mocha -r source-map-support/register -r ts-node/register \"ts/**/*.test.ts\" --watch --watch-extensions ts"
-  },
-  "keywords": [
-    "storage",
-    "graph",
-    "database",
-    "typescript"
-  ],
-  "author": "Vincent den Boer",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/WorldBrain/storex-backend-typeorm.git"
-  },
-  "dependencies": {
-    "event-emitter": "^0.3.5",
-    "events": "^3.0.0",
-    "lodash": "^4.17.11",
-    "pluralize": "^7.0.0",
-    "randombytes": "^2.0.6",
-    "source-map-support": "^0.4.18",
-    "typeorm": "^0.2.17"
-  },
-  "devDependencies": {
-    "@types/lodash": "^4.14.132",
-    "@types/mocha": "^2.2.44",
-    "@types/node": "^10.12.11",
-    "@worldbrain/storex": "^0.3.5",
-    "expect": "^23.5.0",
-    "mocha": "^5.0.1",
-    "sqlite3": "^4.0.8",
-    "ts-node": "^7.0.1",
-    "typescript": "^3.0.1"
-  },
-  "peerDependencies": {
-    "@worldbrain/storex": "^0.3.5",
-    "sqlite3": "^4.0.8"
-  }
+    "name": "@worldbrain/storex-backend-typeorm",
+    "version": "0.1.0",
+    "license": "MIT",
+    "description": "Storex TypeORM storage backend",
+    "main": "lib/index.js",
+    "typings": "lib/index",
+    "scripts": {
+        "prepare": "tsc",
+        "prepare:watch": "npm run prepare -- -w",
+        "test": "mocha --require ts-node/register \"ts/**/*.test.ts\"",
+        "test:watch": "mocha -r source-map-support/register -r ts-node/register \"ts/**/*.test.ts\" --watch --watch-extensions ts",
+        "format": "prettier --config prettier.config.js --write '**/*.{ts,js,tsx,jsx,css,md}'"
+    },
+    "husky": {
+        "hooks": {
+            "pre-commit": "pretty-quick --staged"
+        }
+    },
+    "keywords": [
+        "storage",
+        "graph",
+        "database",
+        "typescript"
+    ],
+    "author": "Vincent den Boer",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/WorldBrain/storex-backend-typeorm.git"
+    },
+    "dependencies": {
+        "event-emitter": "^0.3.5",
+        "events": "^3.0.0",
+        "lodash": "^4.17.11",
+        "pluralize": "^7.0.0",
+        "randombytes": "^2.0.6",
+        "source-map-support": "^0.4.18",
+        "typeorm": "^0.2.17"
+    },
+    "devDependencies": {
+        "@types/lodash": "^4.14.132",
+        "@types/mocha": "^2.2.44",
+        "@types/node": "^10.12.11",
+        "@worldbrain/storex": "^0.3.5",
+        "expect": "^23.5.0",
+        "husky": "^3.0.5",
+        "mocha": "^5.0.1",
+        "prettier": "^1.18.2",
+        "pretty-quick": "^1.11.1",
+        "sqlite3": "^4.0.8",
+        "ts-node": "^7.0.1",
+        "typescript": "^3.0.1"
+    },
+    "peerDependencies": {
+        "@worldbrain/storex": "^0.3.5",
+        "sqlite3": "^4.0.8"
+    }
 }
