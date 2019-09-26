@@ -18,7 +18,7 @@ const FIELD_TYPE_MAP: { [name: string]: EntitySchemaColumnOptions } = {
     text: { type: 'text' },
     json: { type: 'json' },
     datetime: { type: 'datetime' },
-    timestamp: { type: 'timestamp' },
+    timestamp: { type: 'integer' },
     string: { type: 'text' },
     boolean: { type: 'tinyint' },
     int: { type: 'integer' },
