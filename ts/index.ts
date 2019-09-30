@@ -377,6 +377,13 @@ function convertQueryWhere(
     const placeholders: { [key: string]: any } = {}
     const expressions: string[] = []
     for (const [fieldName, predicate] of Object.entries(where)) {
+        const fieldDefinition = options.collectionDefinition.fields[fieldName]
+        if (!fieldDefinition) {
+            throw new Error(
+                `Tried to filter by non-existing field '${fieldName}'`,
+            )
+        }
+
         const conditions = []
         if (isPlainObject(predicate)) {
             for (const [key, value] of Object.entries(predicate)) {
@@ -394,9 +401,20 @@ function convertQueryWhere(
             )
         }
 
-        const [operator, rhs] = conditions[0]
-        if (!OPERATORS_AS_STRINGS[operator]) {
-            throw new Error(`Unsupported operator '${operator}' for field ''`)
+        let [operator, rhs] = conditions[0]
+        let operatorValid = !!OPERATORS_AS_STRINGS[operator]
+        if (fieldDefinition.type === 'json') {
+            if (operator === '$eq') {
+                rhs = JSON.stringify(rhs)
+            } else {
+                operatorValid = false
+            }
+        }
+
+        if (!operatorValid) {
+            throw new Error(
+                `Unsupported operator '${operator}' for field '${fieldName}'`,
+            )
         }
 
         const convertedFieldName = convertFieldName(fieldName)
