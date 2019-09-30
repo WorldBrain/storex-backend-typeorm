@@ -1,4 +1,9 @@
-import { EntitySchema, EntitySchemaColumnOptions } from 'typeorm'
+import {
+    EntitySchema,
+    EntitySchemaColumnOptions,
+    ConnectionOptions,
+    ColumnType,
+} from 'typeorm'
 import { EntitySchemaOptions } from 'typeorm/entity-schema/EntitySchemaOptions'
 import { StorageRegistry } from '@worldbrain/storex'
 import {
@@ -8,37 +13,59 @@ import {
     CollectionField,
 } from '@worldbrain/storex/lib/types'
 import { RelationType } from 'typeorm/metadata/types/RelationTypes'
+import { supportsJsonFields } from './utils'
 
-const FIELD_TYPE_MAP: { [name: string]: EntitySchemaColumnOptions } = {
-    'auto-pk': {
-        type: 'integer',
-        generated: true,
-        primary: true,
-    },
-    text: { type: 'text' },
-    json: { type: 'json' },
-    datetime: { type: 'datetime' },
-    timestamp: { type: 'integer' },
-    string: { type: 'text' },
-    boolean: { type: 'tinyint' },
-    int: { type: 'integer' },
-    float: { type: 'float' },
+export interface AutoPkOptions {
+    generated?: true
+    type: ColumnType
+}
+
+const FIELD_TYPE_MAP: {
+    [name: string]: (options: {
+        databaseType: ConnectionOptions['type']
+        autoPkOptions: AutoPkOptions
+    }) => EntitySchemaColumnOptions
+} = {
+    'auto-pk': ({ autoPkOptions }) => ({
+        type: autoPkOptions.type,
+        ...autoPkOptions,
+    }),
+    text: () => ({ type: 'text' }),
+    json: ({ databaseType }) =>
+        !supportsJsonFields(databaseType) ? { type: 'text' } : { type: 'json' },
+    datetime: () => ({ type: 'datetime' }),
+    timestamp: () => ({ type: 'integer' }),
+    string: () => ({ type: 'text' }),
+    boolean: () => ({ type: 'tinyint' }),
+    int: () => ({ type: 'integer' }),
+    float: () => ({ type: 'float' }),
 }
 
 export function collectionsToEntitySchemas(
     storageRegistry: StorageRegistry,
+    options: {
+        databaseType: ConnectionOptions['type']
+        autoPkOptions: AutoPkOptions
+    },
 ): { [collectionName: string]: EntitySchema } {
     const schemas: { [collectionName: string]: EntitySchema } = {}
     for (const [collectionName, collectionDefinition] of Object.entries(
         storageRegistry.collections,
     )) {
-        schemas[collectionName] = collectionToEntitySchema(collectionDefinition)
+        schemas[collectionName] = collectionToEntitySchema(
+            collectionDefinition,
+            options,
+        )
     }
     return schemas
 }
 
 export function collectionToEntitySchema(
     collectionDefinition: CollectionDefinition,
+    options: {
+        databaseType: ConnectionOptions['type']
+        autoPkOptions: AutoPkOptions
+    },
 ): EntitySchema {
     const entitySchemaOptions: EntitySchemaOptions<any> = {
         name: collectionDefinition.name!,
@@ -57,6 +84,7 @@ export function collectionToEntitySchema(
             {
                 collectionName: entitySchemaOptions.name,
                 fieldName,
+                ...options,
             },
         )
 
@@ -109,21 +137,25 @@ export function collectionToEntitySchema(
 
 export function fieldToEntitySchemaColumn(
     fieldDefinition: CollectionField,
-    options: { collectionName: string; fieldName: string },
+    options: {
+        collectionName: string
+        fieldName: string
+        databaseType: ConnectionOptions['type']
+        autoPkOptions: AutoPkOptions
+    },
 ): EntitySchemaColumnOptions {
     const primitiveType = fieldDefinition.fieldObject
         ? fieldDefinition.fieldObject.primitiveType
         : fieldDefinition.type
 
-    const columnOptions = FIELD_TYPE_MAP[primitiveType] && {
-        ...FIELD_TYPE_MAP[primitiveType],
-    }
-    if (!columnOptions) {
+    const columnOptionsFactory = FIELD_TYPE_MAP[primitiveType]
+    if (!columnOptionsFactory) {
         throw new Error(
             `Unknown field type for field '${options.fieldName}' of collection '${options.collectionName}': '${primitiveType}'`,
         )
     }
 
+    const columnOptions = columnOptionsFactory(options)
     if (fieldDefinition.optional) {
         columnOptions.nullable = true
     }

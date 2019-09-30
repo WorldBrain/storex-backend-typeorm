@@ -1,4 +1,5 @@
 import isPlainObject from 'lodash/isPlainObject'
+import snakeCase from 'lodash/snakeCase'
 import {
     StorageRegistry,
     CollectionDefinition,
@@ -13,7 +14,7 @@ import {
     createConnection,
     EntitySchema,
 } from 'typeorm'
-import { collectionsToEntitySchemas } from './entities'
+import { collectionsToEntitySchemas, AutoPkOptions } from './entities'
 import {
     cleanOptionalFieldsForRead,
     ObjectCleaner,
@@ -21,6 +22,9 @@ import {
     makeCleanBooleanFieldsForRead,
     cleanRelationshipFieldsForWrite,
     cleanRelationshipFieldsForRead,
+    supportsJsonFields,
+    serializeJsonFields,
+    deserializeJsonFields,
 } from './utils'
 import { ComplexCreateMiddleware } from './middleware'
 
@@ -55,7 +59,13 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
     private writeObjectCleaner!: ObjectCleaner
     private initialized = false
 
-    constructor(private options: { connectionOptions: ConnectionOptions }) {
+    constructor(
+        private options: {
+            connectionOptions: ConnectionOptions
+            autoPkOptions?: AutoPkOptions
+            forceNewConnection?: boolean
+        },
+    ) {
         super()
     }
 
@@ -66,17 +76,43 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
 
     _onRegistryInitialized = async () => {
         this.initialized = true
-        this.entitySchemas = collectionsToEntitySchemas(this.registry)
+        this.entitySchemas = collectionsToEntitySchemas(this.registry, {
+            databaseType: this.options.connectionOptions.type,
+            autoPkOptions: this.options.autoPkOptions || {
+                generated: true,
+                type: 'integer',
+            },
+        })
+        if (this.options.forceNewConnection) {
+            try {
+                const existingConnection = typeorm
+                    .getConnectionManager()
+                    .get('default')
+                if (existingConnection) {
+                    await existingConnection.close()
+                }
+            } catch (e) {
+                if (e.name !== 'ConnectionNotFoundError') {
+                    throw e
+                }
+            }
+        }
         this.connection = await createConnection({
             ...this.options.connectionOptions,
             entities: Object.values(this.entitySchemas),
         })
         this.readObjectCleaner = makeCleanerChain([
+            ...(!supportsJsonFields(this.options.connectionOptions.type)
+                ? [deserializeJsonFields]
+                : []),
             makeCleanBooleanFieldsForRead({ storageRegistry: this.registry }),
             cleanOptionalFieldsForRead,
             cleanRelationshipFieldsForRead,
         ])
         this.writeObjectCleaner = makeCleanerChain([
+            ...(!supportsJsonFields(this.options.connectionOptions.type)
+                ? [serializeJsonFields]
+                : []),
             cleanRelationshipFieldsForWrite,
         ])
     }
@@ -100,6 +136,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             collectionDefinition,
         })
         const savedObject = await repository.save(cleanedObject)
+
         return {
             object: this.readObjectCleaner(savedObject, {
                 collectionDefinition,
@@ -115,7 +152,10 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         const {
             collectionDefinition,
             queryBuilderWithWhere,
-        } = this._preprocessFilteredOperation(collection, where, options)
+        } = this._preprocessFilteredOperation(collection, where, {
+            ...options,
+            tableCasing: 'camel-case',
+        })
         const objects = await queryBuilderWithWhere
             .orderBy(convertOrder(options.order || [], { collection }))
             .take(options.limit)
@@ -135,7 +175,10 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         const { queryBuilderWithWhere } = this._preprocessFilteredOperation(
             collection,
             where,
-            options,
+            {
+                ...options,
+                tableCasing: 'snake-case',
+            },
         )
         const convertedUpdates = updates
         await queryBuilderWithWhere.update(convertedUpdates).execute()
@@ -149,7 +192,10 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         const { queryBuilderWithWhere } = this._preprocessFilteredOperation(
             collection,
             where,
-            options,
+            {
+                ...options,
+                tableCasing: 'snake-case',
+            },
         )
         await queryBuilderWithWhere.delete().execute()
     }
@@ -162,7 +208,10 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         const {
             collectionDefinition,
             queryBuilderWithWhere,
-        } = this._preprocessFilteredOperation(collection, where, options)
+        } = this._preprocessFilteredOperation(collection, where, {
+            ...options,
+            tableCasing: 'snake-case',
+        })
         return queryBuilderWithWhere.getCount()
     }
 
@@ -223,6 +272,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
                 'Tried to use TypeORM backend without calling StorageManager.finishInitialization() first',
             )
         }
+
         const next = {
             process: (context: { operation: any[] }) =>
                 super.operation(
@@ -266,7 +316,10 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
     _preprocessFilteredOperation(
         collectionName: string,
         where: any,
-        options?: { database?: string },
+        options: {
+            tableCasing: 'camel-case' | 'snake-case'
+            database?: string
+        },
     ) {
         const { repository, collectionDefinition } = this._preprocessOperation(
             collectionName,
@@ -274,6 +327,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         )
         const convertedWhere = convertQueryWhere(where, {
             collectionDefinition,
+            tableCasing: options.tableCasing,
         })
         const queryBuilder = repository.createQueryBuilder(collectionName)
         const queryBuilderWithWhere = queryBuilder.where(
@@ -291,7 +345,10 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
 
 function convertQueryWhere(
     where: { [key: string]: any },
-    options: { collectionDefinition: CollectionDefinition },
+    options: {
+        collectionDefinition: CollectionDefinition
+        tableCasing: 'camel-case' | 'snake-case'
+    },
 ): {
     expression: string
     placeholders: { [key: string]: any }
@@ -312,6 +369,10 @@ function convertQueryWhere(
             )
         }
     }
+    const tableName =
+        options.tableCasing === 'snake-case'
+            ? snakeCase(options.collectionDefinition.name)
+            : options.collectionDefinition.name
 
     const placeholders: { [key: string]: any } = {}
     const expressions: string[] = []
@@ -320,12 +381,6 @@ function convertQueryWhere(
         if (isPlainObject(predicate)) {
             for (const [key, value] of Object.entries(predicate)) {
                 if (key.charAt(0) === '$') {
-                    if (key === '$eq') {
-                        // Not a standard operator, just an internal one
-                        throw new Error(
-                            `Unsupported operator '${key}' for field ''`,
-                        )
-                    }
                     conditions.push([key, value])
                 }
             }
@@ -345,15 +400,21 @@ function convertQueryWhere(
         }
 
         const convertedFieldName = convertFieldName(fieldName)
-        placeholders[convertedFieldName] = rhs
-        if (operator === '$in') {
-            expressions.push(
-                `${options.collectionDefinition.name}.${convertedFieldName} IN (:...${convertedFieldName})`,
-            )
+        if (operator === '$eq' && rhs === null) {
+            expressions.push(`${tableName}.${convertedFieldName} IS NULL`)
+        } else if (operator === '$ne' && rhs === null) {
+            expressions.push(`${tableName}.${convertedFieldName} IS NOT NULL`)
         } else {
-            expressions.push(
-                `${options.collectionDefinition.name}.${convertedFieldName} ${OPERATORS_AS_STRINGS[operator]} :${convertedFieldName}`,
-            )
+            placeholders[convertedFieldName] = rhs
+            if (operator === '$in') {
+                expressions.push(
+                    `${tableName}.${convertedFieldName} IN (:...${convertedFieldName})`,
+                )
+            } else {
+                expressions.push(
+                    `${tableName}.${convertedFieldName} ${OPERATORS_AS_STRINGS[operator]} :${convertedFieldName}`,
+                )
+            }
         }
     }
     return { expression: expressions.join(' AND '), placeholders }

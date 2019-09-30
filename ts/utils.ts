@@ -4,6 +4,7 @@ import {
     isChildOfRelationship,
     isConnectsRelationship,
 } from '@worldbrain/storex'
+import { ConnectionOptions } from 'typeorm'
 
 export type ObjectCleaner = (
     object: any,
@@ -116,4 +117,39 @@ export function _cleanRelationshipFields(
     }
 
     return object
+}
+
+export function serializeJsonFields(
+    object: any,
+    options: ObjectCleanerOptions,
+) {
+    for (const [fieldName, fieldDefinition] of Object.entries(
+        options.collectionDefinition.fields,
+    )) {
+        if (fieldDefinition.type === 'json') {
+            object[fieldName] = JSON.stringify(object[fieldName])
+        }
+    }
+
+    return object
+}
+
+export function deserializeJsonFields(
+    object: any,
+    options: ObjectCleanerOptions,
+) {
+    for (const [fieldName, fieldDefinition] of Object.entries(
+        options.collectionDefinition.fields,
+    )) {
+        if (fieldDefinition.type === 'json') {
+            object[fieldName] =
+                object[fieldName] && JSON.parse(object[fieldName])
+        }
+    }
+
+    return object
+}
+
+export function supportsJsonFields(databaseType: ConnectionOptions['type']) {
+    return databaseType === 'postgres'
 }
