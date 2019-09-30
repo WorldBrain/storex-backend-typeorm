@@ -1,3 +1,4 @@
+const jsonStringify = require('json-stable-stringify')
 import {
     CollectionDefinition,
     StorageRegistry,
@@ -127,7 +128,7 @@ export function serializeJsonFields(
         options.collectionDefinition.fields,
     )) {
         if (fieldDefinition.type === 'json') {
-            object[fieldName] = JSON.stringify(object[fieldName])
+            object[fieldName] = jsonStringify(object[fieldName])
         }
     }
 
