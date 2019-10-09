@@ -121,7 +121,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         await this.connection!.synchronize()
     }
 
-    async cleanup(): Promise<any> {}
+    async cleanup(): Promise<any> { }
 
     async createObject(
         collection: string,
@@ -177,7 +177,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             where,
             {
                 ...options,
-                tableCasing: 'snake-case',
+                tableCasing: 'camel-case',
             },
         )
         const convertedUpdates = updates
@@ -257,7 +257,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
                 } else {
                     throw new Error(
                         `Unsupported operation in batch: ${
-                            (operation as any).operation
+                        (operation as any).operation
                         }`,
                     )
                 }
