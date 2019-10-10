@@ -194,7 +194,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             where,
             {
                 ...options,
-                tableCasing: 'snake-case',
+                tableCasing: 'camel-case',
             },
         )
         await queryBuilderWithWhere.delete().execute()
@@ -348,27 +348,34 @@ function convertQueryWhere(
     options: {
         collectionDefinition: CollectionDefinition
         tableCasing: 'camel-case' | 'snake-case'
+        columnCasing?: 'camel-case' | 'snake-case'
     },
 ): {
     expression: string
     placeholders: { [key: string]: any }
 } {
+    options.columnCasing = options.columnCasing || 'camel-case'
+
     const convertFieldName = (fieldName: string) => {
         const relationship = options.collectionDefinition.relationshipsByAlias![
             fieldName
         ]
-        if (!relationship) {
-            return fieldName
+        let converted: string
+        if (relationship) {
+            if (isChildOfRelationship(relationship)) {
+                converted = relationship.fieldName!
+            } else {
+                throw new Error(
+                    `Not supported yet to filter by this relationship: ${fieldName}`,
+                )
+            }
+        } else {
+            converted = fieldName
         }
 
-        if (isChildOfRelationship(relationship)) {
-            return relationship.fieldName!
-        } else {
-            throw new Error(
-                `Not supported yet to filter by this relationship: ${fieldName}`,
-            )
-        }
+        return options.columnCasing === 'snake-case' ? snakeCase(converted) : converted
     }
+
     const tableName =
         options.tableCasing === 'snake-case'
             ? snakeCase(options.collectionDefinition.name)
@@ -384,11 +391,11 @@ function convertQueryWhere(
             )
         }
 
-        const conditions = []
+        const conditions: Array<[keyof typeof OPERATORS_AS_STRINGS, any]> = []
         if (isPlainObject(predicate)) {
             for (const [key, value] of Object.entries(predicate)) {
                 if (key.charAt(0) === '$') {
-                    conditions.push([key, value])
+                    conditions.push([key as any, value])
                 }
             }
         }
