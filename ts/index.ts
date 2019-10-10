@@ -220,9 +220,9 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             return { info: {} }
         }
 
-        const info = {}
+        const info: { [placeholder: string]: { object: any } } = {}
         await this.connection!.transaction(async entityManager => {
-            const placeholders = {}
+            const placeholders: { [key: string]: any } = {}
             for (const operation of batch) {
                 if (operation.operation === 'createObject') {
                     const toInsert =
