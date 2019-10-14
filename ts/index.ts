@@ -325,20 +325,27 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             collectionName,
             options,
         )
-        const convertedWhere = convertQueryWhere(where, {
-            collectionDefinition,
-            tableCasing: options.tableCasing,
-        })
         const queryBuilder = repository.createQueryBuilder(collectionName)
-        const queryBuilderWithWhere = queryBuilder.where(
-            convertedWhere.expression,
-            convertedWhere.placeholders,
-        )
-        return {
-            repository,
-            collectionDefinition,
-            convertedWhere,
-            queryBuilderWithWhere,
+        if (Object.keys(where)) {
+            const convertedWhere = convertQueryWhere(where, {
+                collectionDefinition,
+                tableCasing: options.tableCasing,
+            })
+            const queryBuilderWithWhere = queryBuilder.where(
+                convertedWhere.expression,
+                convertedWhere.placeholders,
+            )
+            return {
+                repository,
+                collectionDefinition,
+                queryBuilderWithWhere,
+            }
+        } else {
+            return {
+                repository,
+                collectionDefinition,
+                queryBuilderWithWhere: queryBuilder,
+            }
         }
     }
 }
