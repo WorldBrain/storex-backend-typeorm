@@ -177,7 +177,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             where,
             {
                 ...options,
-                tableCasing: 'camel-case',
+                tableCasing: 'snake-case',
             },
         )
         const convertedUpdates = updates
