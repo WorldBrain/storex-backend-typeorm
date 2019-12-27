@@ -172,7 +172,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         updates: any,
         options: backend.UpdateManyOptions & InternalOperationOptions = {},
     ): Promise<backend.UpdateManyResult> {
-        const { queryBuilderWithWhere } = this._preprocessFilteredOperation(
+        const { queryBuilderWithWhere, collectionDefinition } = this._preprocessFilteredOperation(
             collection,
             where,
             {
@@ -180,7 +180,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
                 tableCasing: 'snake-case',
             },
         )
-        const convertedUpdates = updates
+        const convertedUpdates = this.writeObjectCleaner(updates, { collectionDefinition })
         await queryBuilderWithWhere.update(convertedUpdates).execute()
     }
 
