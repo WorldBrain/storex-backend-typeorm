@@ -177,7 +177,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             where,
             {
                 ...options,
-                tableCasing: 'snake-case',
+                tableCasing: 'camel-case',
             },
         )
         const convertedUpdates = this.writeObjectCleaner(updates, { collectionDefinition })

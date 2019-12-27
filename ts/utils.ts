@@ -127,7 +127,7 @@ export function serializeJsonFields(
     for (const [fieldName, fieldDefinition] of Object.entries(
         options.collectionDefinition.fields,
     )) {
-        if (fieldDefinition.type === 'json') {
+        if (fieldDefinition.type === 'json' && typeof object[fieldName] !== 'undefined') {
             object[fieldName] = jsonStringify(object[fieldName])
         }
     }
