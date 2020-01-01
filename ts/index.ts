@@ -4,6 +4,8 @@ import {
     StorageRegistry,
     CollectionDefinition,
     isChildOfRelationship,
+    Relationship,
+    CollectionField,
 } from '@worldbrain/storex'
 import * as backend from '@worldbrain/storex/lib/types/backend'
 import { StorageBackendFeatureSupport } from '@worldbrain/storex/lib/types/backend-features'
@@ -273,21 +275,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             )
         }
 
-        const next = {
-            process: (context: { operation: any[] }) =>
-                super.operation(
-                    context.operation[0],
-                    ...context.operation.slice(1),
-                ),
-        }
-        const middleware = new ComplexCreateMiddleware({
-            storageRegistry: this.registry,
-        })
-        const result = await middleware.process({
-            operation: [name, ...args],
-            next,
-        })
-        return result
+        return super.operation(name, ...args)
     }
 
     getRepositoryForCollection(
@@ -363,10 +351,7 @@ function convertQueryWhere(
 } {
     options.columnCasing = options.columnCasing || 'camel-case'
 
-    const convertFieldName = (fieldName: string) => {
-        const relationship = options.collectionDefinition.relationshipsByAlias![
-            fieldName
-        ]
+    const convertFieldName = (fieldName: string, relationship?: Relationship) => {
         let converted: string
         if (relationship) {
             if (isChildOfRelationship(relationship)) {
@@ -391,8 +376,11 @@ function convertQueryWhere(
     const placeholders: { [key: string]: any } = {}
     const expressions: string[] = []
     for (const [fieldName, predicate] of Object.entries(where)) {
-        const fieldDefinition = options.collectionDefinition.fields[fieldName]
-        if (!fieldDefinition) {
+        const fieldDefinition: CollectionField | undefined =
+            options.collectionDefinition.fields[fieldName]
+        const relationship: Relationship | undefined = options
+            .collectionDefinition.relationshipsByAlias![fieldName]
+        if (!fieldDefinition && !relationship) {
             throw new Error(
                 `Tried to filter by non-existing field '${fieldName}'`,
             )
@@ -417,7 +405,7 @@ function convertQueryWhere(
 
         let [operator, rhs] = conditions[0]
         let operatorValid = !!OPERATORS_AS_STRINGS[operator]
-        if (fieldDefinition.type === 'json') {
+        if (fieldDefinition && fieldDefinition.type === 'json') {
             if (operator === '$eq') {
                 rhs = JSON.stringify(rhs)
             } else {
@@ -431,7 +419,7 @@ function convertQueryWhere(
             )
         }
 
-        const convertedFieldName = convertFieldName(fieldName)
+        const convertedFieldName = convertFieldName(fieldName, relationship)
         if (operator === '$eq' && rhs === null) {
             expressions.push(`${tableName}.${convertedFieldName} IS NULL`)
         } else if (operator === '$ne' && rhs === null) {
