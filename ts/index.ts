@@ -160,6 +160,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         })
         const objects = await queryBuilderWithWhere
             .orderBy(convertOrder(options.order || [], { collection }))
+            .skip(options.skip)
             .take(options.limit)
             .getMany()
 
