@@ -66,6 +66,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             connectionOptions: ConnectionOptions
             autoPkOptions?: AutoPkOptions
             forceNewConnection?: boolean
+            legacyMemexCompatibility?: boolean // temporary option that prevents normalisation of optional fields
         },
     ) {
         super()
@@ -108,7 +109,9 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
                 ? [deserializeJsonFields]
                 : []),
             makeCleanBooleanFieldsForRead({ storageRegistry: this.registry }),
-            cleanOptionalFieldsForRead,
+            ...(this.options.legacyMemexCompatibility
+                ? [cleanOptionalFieldsForRead]
+                : []),
             cleanRelationshipFieldsForRead,
         ])
         this.writeObjectCleaner = makeCleanerChain([
@@ -123,7 +126,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         await this.connection!.synchronize()
     }
 
-    async cleanup(): Promise<any> { }
+    async cleanup(): Promise<any> {}
 
     async createObject(
         collection: string,
@@ -175,15 +178,16 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         updates: any,
         options: backend.UpdateManyOptions & InternalOperationOptions = {},
     ): Promise<backend.UpdateManyResult> {
-        const { queryBuilderWithWhere, collectionDefinition } = this._preprocessFilteredOperation(
-            collection,
-            where,
-            {
-                ...options,
-                tableCasing: 'camel-case',
-            },
-        )
-        const convertedUpdates = this.writeObjectCleaner(updates, { collectionDefinition })
+        const {
+            queryBuilderWithWhere,
+            collectionDefinition,
+        } = this._preprocessFilteredOperation(collection, where, {
+            ...options,
+            tableCasing: 'camel-case',
+        })
+        const convertedUpdates = this.writeObjectCleaner(updates, {
+            collectionDefinition,
+        })
         await queryBuilderWithWhere.update(convertedUpdates).execute()
     }
 
@@ -260,7 +264,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
                 } else {
                     throw new Error(
                         `Unsupported operation in batch: ${
-                        (operation as any).operation
+                            (operation as any).operation
                         }`,
                     )
                 }
@@ -352,7 +356,10 @@ function convertQueryWhere(
 } {
     options.columnCasing = options.columnCasing || 'camel-case'
 
-    const convertFieldName = (fieldName: string, relationship?: Relationship) => {
+    const convertFieldName = (
+        fieldName: string,
+        relationship?: Relationship,
+    ) => {
         let converted: string
         if (relationship) {
             if (isChildOfRelationship(relationship)) {
@@ -366,7 +373,9 @@ function convertQueryWhere(
             converted = fieldName
         }
 
-        return options.columnCasing === 'snake-case' ? snakeCase(converted) : converted
+        return options.columnCasing === 'snake-case'
+            ? snakeCase(converted)
+            : converted
     }
 
     const tableName =
