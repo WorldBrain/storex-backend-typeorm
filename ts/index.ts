@@ -183,12 +183,15 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             collectionDefinition,
         } = this._preprocessFilteredOperation(collection, where, {
             ...options,
-            tableCasing: 'camel-case',
+            tableCasing: 'snake-case',
         })
         const convertedUpdates = this.writeObjectCleaner(updates, {
             collectionDefinition,
         })
-        await queryBuilderWithWhere.update(convertedUpdates).execute()
+        await queryBuilderWithWhere
+            .update()
+            .set(convertedUpdates)
+            .execute()
     }
 
     async deleteObjects(
