@@ -183,7 +183,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             collectionDefinition,
         } = this._preprocessFilteredOperation(collection, where, {
             ...options,
-            tableCasing: 'camel-case',
+            tableCasing: 'snake-case',
         })
         const convertedUpdates = this.writeObjectCleaner(updates, {
             collectionDefinition,
@@ -321,7 +321,8 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             collectionName,
             options,
         )
-        const queryBuilder = repository.createQueryBuilder(collectionName)
+        const queryBuilder = repository.createQueryBuilder(
+            options.tableCasing === 'camel-case' ? collectionName : snakeCase(collectionName))
         if (Object.keys(where)) {
             const convertedWhere = convertQueryWhere(where, {
                 collectionDefinition,
