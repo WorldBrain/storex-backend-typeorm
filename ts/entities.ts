@@ -109,7 +109,7 @@ export function collectionToEntitySchema(
                 target: relationship.targetCollection!,
                 joinColumn: { name: relationship.fieldName },
             }
-            entitySchemaOptions.columns![relationship.alias! + 'Id'] = {
+            entitySchemaOptions.columns![relationship.fieldName!] = {
                 type: 'integer',
             }
         } else if (isConnectsRelationship(relationship)) {
@@ -120,7 +120,7 @@ export function collectionToEntitySchema(
                     joinColumn: { name: relationship.fieldNames![index] },
                 }
                 entitySchemaOptions.columns![
-                    relationship.aliases![index] + 'Id'
+                    relationship.fieldNames![index]
                 ] = {
                     type: 'integer',
                 }

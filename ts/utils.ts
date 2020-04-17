@@ -83,7 +83,7 @@ export function cleanRelationshipFieldsForWrite(
                 return
             }
 
-            object[alias + 'Id'] = object[alias]
+            object[fieldName] = object[alias]
             delete object[alias]
         },
     )
@@ -97,8 +97,8 @@ export function cleanRelationshipFieldsForRead(
         object,
         options.collectionDefinition,
         (alias: string, fieldName: string) => {
-            object[alias] = object[alias + 'Id']
-            delete object[alias + 'Id']
+            object[alias] = object[fieldName]
+            delete object[fieldName]
         },
     )
 }
@@ -127,7 +127,10 @@ export function serializeJsonFields(
     for (const [fieldName, fieldDefinition] of Object.entries(
         options.collectionDefinition.fields,
     )) {
-        if (fieldDefinition.type === 'json' && typeof object[fieldName] !== 'undefined') {
+        if (
+            fieldDefinition.type === 'json' &&
+            typeof object[fieldName] !== 'undefined'
+        ) {
             object[fieldName] = jsonStringify(object[fieldName])
         }
     }
