@@ -321,8 +321,8 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             collectionName,
             options,
         )
-        const queryBuilder = repository.createQueryBuilder(
-            options.tableCasing === 'camel-case' ? collectionName : snakeCase(collectionName))
+        const tableAlias = options.tableCasing === 'camel-case' ? collectionName : snakeCase(collectionName)
+        const queryBuilder = repository.createQueryBuilder(tableAlias)
         if (Object.keys(where)) {
             const convertedWhere = convertQueryWhere(where, {
                 collectionDefinition,
@@ -434,19 +434,25 @@ function convertQueryWhere(
         }
 
         const convertedFieldName = convertFieldName(fieldName, relationship)
+
+        // The former used to be necessary, but behavior was inconsistent.
+        // Leaving this here in case we need to revert this change
+        // const fullQueryField = `${tableName}.${convertedFieldName}`
+        const fullQueryField = convertedFieldName
+
         if (operator === '$eq' && rhs === null) {
-            expressions.push(`${tableName}.${convertedFieldName} IS NULL`)
+            expressions.push(`${fullQueryField} IS NULL`)
         } else if (operator === '$ne' && rhs === null) {
-            expressions.push(`${tableName}.${convertedFieldName} IS NOT NULL`)
+            expressions.push(`${fullQueryField} IS NOT NULL`)
         } else {
             placeholders[convertedFieldName] = rhs
             if (operator === '$in') {
                 expressions.push(
-                    `${tableName}.${convertedFieldName} IN (:...${convertedFieldName})`,
+                    `${fullQueryField} IN (:...${convertedFieldName})`,
                 )
             } else {
                 expressions.push(
-                    `${tableName}.${convertedFieldName} ${OPERATORS_AS_STRINGS[operator]} :${convertedFieldName}`,
+                    `${fullQueryField} ${OPERATORS_AS_STRINGS[operator]} :${convertedFieldName}`,
                 )
             }
         }
