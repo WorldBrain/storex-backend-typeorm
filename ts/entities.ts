@@ -27,7 +27,6 @@ const FIELD_TYPE_MAP: {
     }) => EntitySchemaColumnOptions
 } = {
     'auto-pk': ({ autoPkOptions }) => ({
-        type: autoPkOptions.type,
         ...autoPkOptions,
     }),
     text: () => ({ type: 'text' }),
