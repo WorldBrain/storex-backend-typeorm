@@ -10,6 +10,7 @@ import {
     CollectionDefinition,
     isChildOfRelationship,
     isConnectsRelationship,
+    RelationshipReference,
     CollectionField,
 } from '@worldbrain/storex/lib/types'
 import { RelationType } from 'typeorm/metadata/types/RelationTypes'
@@ -108,8 +109,18 @@ export function collectionToEntitySchema(
                 target: relationship.targetCollection!,
                 joinColumn: { name: relationship.fieldName },
             }
-            entitySchemaOptions.columns![relationship.alias! + 'Id'] = {
+            entitySchemaOptions.columns![relationship.fieldName!] = {
                 type: 'integer',
+            }
+
+            if (
+                typeof collectionDefinition.pkIndex !== 'string' &&
+                (collectionDefinition.pkIndex as RelationshipReference)
+                    .relationship === relationship.fieldName
+            ) {
+                entitySchemaOptions.columns[
+                    relationship.fieldName
+                ]!.primary = true
             }
         } else if (isConnectsRelationship(relationship)) {
             for (const index of [0, 1]) {
@@ -119,7 +130,7 @@ export function collectionToEntitySchema(
                     joinColumn: { name: relationship.fieldNames![index] },
                 }
                 entitySchemaOptions.columns![
-                    relationship.aliases![index] + 'Id'
+                    relationship.fieldNames![index]
                 ] = {
                     type: 'integer',
                 }
