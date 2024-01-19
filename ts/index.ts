@@ -8,7 +8,7 @@ import {
     CollectionField,
 } from '@worldbrain/storex'
 import * as backend from '@worldbrain/storex/lib/types/backend'
-import { StorageBackendFeatureSupport } from '@worldbrain/storex/lib/types/backend-features'
+import type { StorageBackendFeatureSupport } from '@worldbrain/storex/lib/types/backend-features'
 import * as typeorm from 'typeorm'
 import {
     Connection,
@@ -28,7 +28,6 @@ import {
     serializeJsonFields,
     deserializeJsonFields,
 } from './utils'
-import { ComplexCreateMiddleware } from './middleware'
 
 const OPERATORS_AS_STRINGS = {
     $lt: '<',
@@ -126,7 +125,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         await this.connection!.synchronize()
     }
 
-    async cleanup(): Promise<any> { }
+    async cleanup(): Promise<any> {}
 
     async createObject(
         collection: string,
@@ -149,6 +148,25 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         }
     }
 
+    async findObjectsLike<T>(
+        collection: string,
+        fieldName: string,
+        likeQuery: string,
+        options: backend.FindManyOptions = {},
+    ): Promise<Array<T>> {
+        const { repository, collectionDefinition } = this._preprocessOperation(
+            collection,
+            options,
+        )
+        const objects: T[] = await repository.find({
+            [fieldName]: typeorm.Like(likeQuery),
+        })
+
+        return objects.map((object) =>
+            this.readObjectCleaner(object, { collectionDefinition }),
+        )
+    }
+
     async findObjects<T>(
         collection: string,
         where: any,
@@ -167,7 +185,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             .take(options.limit)
             .getMany()
 
-        return objects.map(object =>
+        return objects.map((object) =>
             this.readObjectCleaner(object, { collectionDefinition }),
         )
     }
@@ -188,10 +206,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         const convertedUpdates = this.writeObjectCleaner(updates, {
             collectionDefinition,
         })
-        await queryBuilderWithWhere
-            .update()
-            .set(convertedUpdates)
-            .execute()
+        await queryBuilderWithWhere.update().set(convertedUpdates).execute()
     }
 
     async deleteObjects(
@@ -231,7 +246,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         }
 
         const info: { [placeholder: string]: { object: any } } = {}
-        await this.connection!.transaction(async entityManager => {
+        await this.connection!.transaction(async (entityManager) => {
             const placeholders: { [key: string]: any } = {}
             for (const operation of batch) {
                 if (operation.operation === 'createObject') {
@@ -244,7 +259,9 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
                         toInsert[path as string] = placeholders[placeholder].id
                     }
 
-                    const { object } = await this.createObject(
+                    const {
+                        object,
+                    } = await this.createObject(
                         operation.collection,
                         toInsert,
                         { entityManager },
@@ -267,7 +284,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
                 } else {
                     throw new Error(
                         `Unsupported operation in batch: ${
-                        (operation as any).operation
+                            (operation as any).operation
                         }`,
                     )
                 }
@@ -321,7 +338,10 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             collectionName,
             options,
         )
-        const tableAlias = options.tableCasing === 'camel-case' ? collectionName : snakeCase(collectionName)
+        const tableAlias =
+            options.tableCasing === 'camel-case'
+                ? collectionName
+                : snakeCase(collectionName)
         const queryBuilder = repository.createQueryBuilder(tableAlias)
         if (Object.keys(where)) {
             const convertedWhere = convertQueryWhere(where, {
