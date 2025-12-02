@@ -5,14 +5,14 @@ import {
     ColumnType,
 } from 'typeorm'
 import { EntitySchemaOptions } from 'typeorm/entity-schema/EntitySchemaOptions'
-import { StorageRegistry } from '@worldbrain/storex'
+import { StorageRegistry } from '@worldbrain/storex/ts'
 import {
     CollectionDefinition,
     isChildOfRelationship,
     isConnectsRelationship,
     RelationshipReference,
     CollectionField,
-} from '@worldbrain/storex/lib/types'
+} from '@worldbrain/storex/ts/types'
 import { RelationType } from 'typeorm/metadata/types/RelationTypes'
 import { supportsJsonFields } from './utils'
 
@@ -79,14 +79,12 @@ export function collectionToEntitySchema(
             continue
         }
 
-        const columnOptions: EntitySchemaColumnOptions = fieldToEntitySchemaColumn(
-            fieldDefinition,
-            {
+        const columnOptions: EntitySchemaColumnOptions =
+            fieldToEntitySchemaColumn(fieldDefinition, {
                 collectionName: entitySchemaOptions.name,
                 fieldName,
                 ...options,
-            },
-        )
+            })
 
         if (
             collectionDefinition.pkIndex instanceof Array
@@ -118,9 +116,8 @@ export function collectionToEntitySchema(
                 (collectionDefinition.pkIndex as RelationshipReference)
                     .relationship === relationship.fieldName
             ) {
-                entitySchemaOptions.columns[
-                    relationship.fieldName
-                ]!.primary = true
+                entitySchemaOptions.columns[relationship.fieldName]!.primary =
+                    true
             }
         } else if (isConnectsRelationship(relationship)) {
             for (const index of [0, 1]) {
@@ -129,11 +126,10 @@ export function collectionToEntitySchema(
                     target: relationship.connects[index]!,
                     joinColumn: { name: relationship.fieldNames![index] },
                 }
-                entitySchemaOptions.columns![
-                    relationship.fieldNames![index]
-                ] = {
-                    type: 'integer',
-                }
+                entitySchemaOptions.columns![relationship.fieldNames![index]] =
+                    {
+                        type: 'integer',
+                    }
             }
         } else {
             throw new Error(

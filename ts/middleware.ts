@@ -1,14 +1,14 @@
-import { StorageRegistry, OperationBatch } from '@worldbrain/storex'
+import { StorageRegistry, OperationBatch } from '@worldbrain/storex/ts'
 import {
     StorageMiddleware,
     StorageMiddlewareContext,
-} from '@worldbrain/storex/lib/types/middleware'
+} from '@worldbrain/storex/ts/types/middleware'
 import {
     dissectCreateObjectOperation,
     convertCreateObjectDissectionToBatch,
     CreateObjectDissection,
     setIn,
-} from '@worldbrain/storex/lib/utils'
+} from '@worldbrain/storex/ts/utils'
 
 export class ComplexCreateMiddleware implements StorageMiddleware {
     constructor(private options: { storageRegistry: StorageRegistry }) {}
@@ -81,9 +81,8 @@ export class ComplexCreateMiddleware implements StorageMiddleware {
                 },
             )
 
-            const batchToExecute = convertCreateObjectDissectionToBatch(
-                dissection,
-            )
+            const batchToExecute =
+                convertCreateObjectDissectionToBatch(dissection)
 
             placeholders[step.placeholder] = {
                 collection: step.collection,
@@ -122,8 +121,8 @@ export class ComplexCreateMiddleware implements StorageMiddleware {
         batchResultInfo: any,
     ) {
         for (const step of operationDissection.objects) {
-            const collectionDefiniton = this.options.storageRegistry
-                .collections[collection]
+            const collectionDefiniton =
+                this.options.storageRegistry.collections[collection]
             const pkIndex = collectionDefiniton.pkIndex
             setIn(
                 object,

@@ -1,7 +1,7 @@
 import {
     testStorageBackend,
     StorexBackendTestContext,
-} from '@worldbrain/storex/lib/index.tests'
+} from '@worldbrain/storex/ts/index.tests'
 import { TypeORMStorageBackend } from '.'
 
 describe('TypeORM StorageBackend tests', () => {

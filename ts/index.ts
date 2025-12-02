@@ -6,9 +6,9 @@ import {
     isChildOfRelationship,
     Relationship,
     CollectionField,
-} from '@worldbrain/storex'
-import * as backend from '@worldbrain/storex/lib/types/backend'
-import { StorageBackendFeatureSupport } from '@worldbrain/storex/lib/types/backend-features'
+} from '@worldbrain/storex/ts'
+import * as backend from '@worldbrain/storex/ts/types/backend'
+import { StorageBackendFeatureSupport } from '@worldbrain/storex/ts/types/backend-features'
 import * as typeorm from 'typeorm'
 import {
     Connection,
@@ -126,7 +126,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         await this.connection!.synchronize()
     }
 
-    async cleanup(): Promise<any> { }
+    async cleanup(): Promise<any> {}
 
     async createObject(
         collection: string,
@@ -154,20 +154,18 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         where: any,
         options: backend.FindManyOptions = {},
     ): Promise<Array<T>> {
-        const {
-            collectionDefinition,
-            queryBuilderWithWhere,
-        } = this._preprocessFilteredOperation(collection, where, {
-            ...options,
-            tableCasing: 'camel-case',
-        })
+        const { collectionDefinition, queryBuilderWithWhere } =
+            this._preprocessFilteredOperation(collection, where, {
+                ...options,
+                tableCasing: 'camel-case',
+            })
         const objects = await queryBuilderWithWhere
             .orderBy(convertOrder(options.order || [], { collection }))
             .skip(options.skip)
             .take(options.limit)
             .getMany()
 
-        return objects.map(object =>
+        return objects.map((object) =>
             this.readObjectCleaner(object, { collectionDefinition }),
         )
     }
@@ -178,20 +176,15 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         updates: any,
         options: backend.UpdateManyOptions & InternalOperationOptions = {},
     ): Promise<backend.UpdateManyResult> {
-        const {
-            queryBuilderWithWhere,
-            collectionDefinition,
-        } = this._preprocessFilteredOperation(collection, where, {
-            ...options,
-            tableCasing: 'snake-case',
-        })
+        const { queryBuilderWithWhere, collectionDefinition } =
+            this._preprocessFilteredOperation(collection, where, {
+                ...options,
+                tableCasing: 'snake-case',
+            })
         const convertedUpdates = this.writeObjectCleaner(updates, {
             collectionDefinition,
         })
-        await queryBuilderWithWhere
-            .update()
-            .set(convertedUpdates)
-            .execute()
+        await queryBuilderWithWhere.update().set(convertedUpdates).execute()
     }
 
     async deleteObjects(
@@ -215,13 +208,11 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         where: any,
         options: backend.CountOptions = {},
     ): Promise<number> {
-        const {
-            collectionDefinition,
-            queryBuilderWithWhere,
-        } = this._preprocessFilteredOperation(collection, where, {
-            ...options,
-            tableCasing: 'snake-case',
-        })
+        const { collectionDefinition, queryBuilderWithWhere } =
+            this._preprocessFilteredOperation(collection, where, {
+                ...options,
+                tableCasing: 'snake-case',
+            })
         return queryBuilderWithWhere.getCount()
     }
 
@@ -231,7 +222,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         }
 
         const info: { [placeholder: string]: { object: any } } = {}
-        await this.connection!.transaction(async entityManager => {
+        await this.connection!.transaction(async (entityManager) => {
             const placeholders: { [key: string]: any } = {}
             for (const operation of batch) {
                 if (operation.operation === 'createObject') {
@@ -267,7 +258,7 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
                 } else {
                     throw new Error(
                         `Unsupported operation in batch: ${
-                        (operation as any).operation
+                            (operation as any).operation
                         }`,
                     )
                 }
@@ -321,7 +312,10 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
             collectionName,
             options,
         )
-        const tableAlias = options.tableCasing === 'camel-case' ? collectionName : snakeCase(collectionName)
+        const tableAlias =
+            options.tableCasing === 'camel-case'
+                ? collectionName
+                : snakeCase(collectionName)
         const queryBuilder = repository.createQueryBuilder(tableAlias)
         if (Object.keys(where)) {
             const convertedWhere = convertQueryWhere(where, {
@@ -392,8 +386,8 @@ function convertQueryWhere(
     for (const [fieldName, predicate] of Object.entries(where)) {
         const fieldDefinition: CollectionField | undefined =
             options.collectionDefinition.fields[fieldName]
-        const relationship: Relationship | undefined = options
-            .collectionDefinition.relationshipsByAlias![fieldName]
+        const relationship: Relationship | undefined =
+            options.collectionDefinition.relationshipsByAlias![fieldName]
         if (!fieldDefinition && !relationship) {
             throw new Error(
                 `Tried to filter by non-existing field '${fieldName}'`,

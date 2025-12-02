@@ -4,7 +4,7 @@ import {
     StorageRegistry,
     isChildOfRelationship,
     isConnectsRelationship,
-} from '@worldbrain/storex'
+} from '@worldbrain/storex/ts'
 import { ConnectionOptions } from 'typeorm'
 
 export type ObjectCleaner = (
