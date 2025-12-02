@@ -28,7 +28,6 @@ import {
     serializeJsonFields,
     deserializeJsonFields,
 } from './utils'
-import { ComplexCreateMiddleware } from './middleware'
 
 const OPERATORS_AS_STRINGS = {
     $lt: '<',
@@ -149,6 +148,25 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
         }
     }
 
+    async findObjectsLike<T>(
+        collection: string,
+        fieldName: string,
+        likeQuery: string,
+        options: backend.FindManyOptions = {},
+    ): Promise<Array<T>> {
+        const { repository, collectionDefinition } = this._preprocessOperation(
+            collection,
+            options,
+        )
+        const objects: T[] = await repository.find({
+            [fieldName]: typeorm.Like(likeQuery),
+        })
+
+        return objects.map((object) =>
+            this.readObjectCleaner(object, { collectionDefinition }),
+        )
+    }
+
     async findObjects<T>(
         collection: string,
         where: any,
@@ -235,7 +253,9 @@ export class TypeORMStorageBackend extends backend.StorageBackend {
                         toInsert[path as string] = placeholders[placeholder].id
                     }
 
-                    const { object } = await this.createObject(
+                    const {
+                        object,
+                    } = await this.createObject(
                         operation.collection,
                         toInsert,
                         { entityManager },

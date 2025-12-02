@@ -10,6 +10,7 @@
         "removeComments": true,
         "lib": ["es2017", "dom"],
         "noLib": false,
+        "skipLibCheck": true,
         "preserveConstEnums": true,
         "declaration": true,
         "sourceMap": true,

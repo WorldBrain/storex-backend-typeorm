@@ -84,7 +84,9 @@ export function cleanRelationshipFieldsForWrite(
             }
 
             object[fieldName] = object[alias]
-            delete object[alias]
+            if (fieldName !== alias) {
+                delete object[alias]
+            }
         },
     )
 }
@@ -98,7 +100,9 @@ export function cleanRelationshipFieldsForRead(
         options.collectionDefinition,
         (alias: string, fieldName: string) => {
             object[alias] = object[fieldName]
-            delete object[fieldName]
+            if (fieldName !== alias) {
+                delete object[alias]
+            }
         },
     )
 }
